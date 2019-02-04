@@ -1,7 +1,8 @@
-import molgenis.client as molgenis
 import matplotlib.pyplot as plt
 
-session = molgenis.Session("https://molgenis56.target.rug.nl/api/")
+import molgenis.client as molgenis
+
+session = molgenis.Session("https://molgenis56.gcc.rug.nl/api/")
 dir(session)
 session.get("ASE")
 print(session.get("ASE", q=[{"field": "SNP_ID", "operator": "EQUALS", "value": "rs12460890"}]))
