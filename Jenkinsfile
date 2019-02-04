@@ -33,7 +33,6 @@ pipeline {
             steps {
                 container('python') {
                     sh "pip install ."
-                    sh "python setup.py test"
                 }
                 container('sonar') {
                     sh "sonar-scanner -Dsonar.github.oauth=${env.GITHUB_TOKEN} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.branch=${BRANCH_NAME} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.provider=GitHub -Dsonar.pullrequest.github.repository=molgenis/molgenis-py-client"
@@ -48,7 +47,6 @@ pipeline {
                 milestone 1
                 container('python') {
                     sh "pip install ."
-                    sh "python setup.py test"
                 }
                 container('sonar') {
                     sh "sonar-scanner"
