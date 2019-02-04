@@ -1,3 +1,5 @@
+[![Quality Status](https://sonarcloud.io/api/project_badges/measure?project=org.molgenis%3Apython-client&metric=alert_status)](https://sonarcloud.io/dashboard?id=org.molgenis%3Apython-client)
+
 # molgenis-py-client
 A Python client for the MOLGENIS REST API
 
@@ -10,7 +12,8 @@ pip install molgenis-py-client
 ```
 
 ### Development
-Want to help out? Fork and clone this repository, go to the root of the project and create a virtual environment:
+Want to help out? Fork and clone this repository, go to the root of the project and create a virtual environment (requires
+Python 3.7 or higher):
 
 ```
 python -m virtualenv env
