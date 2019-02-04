@@ -6,6 +6,10 @@ import molgenis.client as molgenis
 
 
 class TestStringMethods(unittest.TestCase):
+    """
+    Tests the client against a running MOLGENIS. Requires that the it_emx_datatypes.xlsx test file has been imported.
+    """
+
     api_url = "http://localhost:8080/api/"
 
     no_readmeta_permission_user_msg = "No 'Read metadata' permission on entity type 'User' with id 'sys_sec_User'."
