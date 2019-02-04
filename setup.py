@@ -7,5 +7,7 @@ setup(
     url='https://github.com/molgenis/molgenis-py-client/',
     license='GNU Lesser General Public License 3.0',
     packages=['molgenis'],
-    install_requires=['requests==2.21.0']
+    install_requires=['requests==2.21.0'],
+    test_suite='nose.collector',
+    tests_require=['nose']
 )

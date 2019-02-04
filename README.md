@@ -30,5 +30,4 @@ Then install the project in development mode:
 pip install -e .
 ```
 
-The `mcmd` command will now be available in this virtual environment! If you want to
-leave the environment, use `deactivate`.
+If you want to leave the environment, use `deactivate`.
