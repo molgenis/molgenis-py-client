@@ -1,2 +1,2 @@
-# molgenis-python-client
+# molgenis-py-client
 A Python client for the MOLGENIS REST API
