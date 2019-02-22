@@ -12,7 +12,7 @@ except ImportError:
 
 class Session:
     """Representation of a session with the MOLGENIS REST API.
-
+sess
     Usage:
     >>> session = Session('http://localhost:8080/api/')
     >>> session.login('user', 'password')
@@ -58,8 +58,8 @@ class Session:
         response.raise_for_status()
         return response
 
-    def get_by_id(self, entity, id_, attributes=None, expand=None):
-        """Retrieves a single entity row from an entity repository.
+    def get_by_id(self, entity, id, attributes=None, expand=None):
+        '''Retrieves a single entity row from an entity repository.
 
         Args:
         entity -- fully qualified name of the entity
@@ -69,21 +69,24 @@ class Session:
 
         Examples:
         session.get('Person', 'John')
-        """
-        response = self._session.get(self._url + "v1/" + quote_plus(entity) + '/' + quote_plus(id_),
+        '''
+        response = self._session.get(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id),
                                      headers=self._get_token_header(),
                                      params={"attributes": attributes, "expand": expand})
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            response.close()
+            return result
         response.raise_for_status()
         return response
 
-    def get(self, entity, q=None, attributes=None, expand=None, num=100, start=0, sort_column=None, sort_order=None):
+    def get(self, entity, q=None, attributes=None, num=100, start=0, sort_column=None, sort_order=None, raw=False,
+            expand=None):
         """Retrieves entity rows from an entity repository.
 
         Args:
         entity -- fully qualified name of the entity
-        q -- query in json form, see the MOLGENIS REST API v1 documentation for details
+        q -- query in json form, see the MOLGENIS REST API v2 documentation for details
         attributes -- The list of attributes to retrieve
         expand -- the attributes to expand
         num -- the amount of entity rows to retrieve
@@ -94,23 +97,20 @@ class Session:
         Examples:
         session.get('Person')
         """
-        if q:
-            response = self._session.post(self._url + "v1/" + quote_plus(entity),
-                                          headers=self._get_token_header_with_content_type(),
-                                          params={"_method": "GET"},
-                                          data=json.dumps(
-                                              {"q": q, "attributes": attributes, "expand": expand, "num": num,
-                                               "start": start,
-                                               "sortColumn": sort_column, "sortOrder": sort_order}))
-        else:
-            response = self._session.get(self._url + "v1/" + quote_plus(entity),
-                                         headers=self._get_token_header(),
-                                         params={"attributes": attributes, "expand": expand, "num": num,
-                                                 "start": start,
-                                                 "sortColumn": sort_column, "sortOrder":
-                                                     sort_order})
+        possible_options = {'q':q,
+                            'attrs':[attributes, expand],
+                            'num':num,
+                            'start':start,
+                            'sort':[sort_column, sort_order]}
+
+
+        url = self._build_api_url(self._url + "v2/" + entity, possible_options)
+        response = self._session.get(url, headers=self._get_token_header())
         if response.status_code == 200:
-            return response.json()["items"]
+            if not raw:
+                return response.json()["items"]
+            else:
+                return response.json()
         response.raise_for_status()
         return response
 
@@ -158,8 +158,9 @@ class Session:
                                       data=json.dumps({"entities": entities}))
         if response.status_code == 201:
             return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
-        response.raise_for_status()
-        return response
+        else:
+            errors = json.loads(response.content.decode("utf-8"))['errors'][0]['message']
+            return errors
 
     def update_one(self, entity, id_, attr, value):
         """Updates one attribute of a given entity in a table with a given value"""
@@ -221,6 +222,48 @@ class Session:
         headers = self._get_token_header()
         headers.update({"Content-Type": "application/json"})
         return headers
+
+    def _build_api_url(self, base_url, possible_options):
+        """This function builds the api url for the get request, converting the api v1 compliant operators to v2
+        operators to enable backwards compatibility of the python api when switching to api v2"""
+        operators = []
+        for option in possible_options:
+            option_value = possible_options[option]
+            if option == 'q' and option_value:
+                if type(option_value) == list:
+                    raise TypeError('Your query should be specified in rsql format.')
+                else:
+                    operators.append('{}={}'.format(option, option_value))
+            elif option == 'sort':
+                if option_value[0]:
+                    if option_value[1]:
+                        operators.append('sort={}:{}'.format(option_value[0], option_value[1]))
+                    else:
+                        operators.append('sort='+option_value[0])
+            elif option == 'attrs':
+                attrs_operator = []
+                if option_value[0]:
+                    attrs_operator = option_value[0].split(',')
+                    if option_value[1]:
+                        expands = option_value[1].split(',')
+                        attrs_operator = [operator+'(*)' if operator in expands else operator for operator in attrs_operator]
+                    operators.append('attrs=' + ','.join(attrs_operator))
+                elif option_value[1]:
+                    expands = option_value[1].split(',')
+                    attrs_operator = [attr+'(*)' for attr in expands]
+                    attrs_operator.append('*')
+                    operators.append('attrs='+','.join(attrs_operator))
+            elif option_value and not (option == 'num' and option_value ==100):
+                operators.append('{}={}'.format(option, option_value))
+
+        url = '{}?{}'.format(base_url, '&'.join(operators))
+
+        if url == base_url+'?':
+            return base_url
+        else:
+            return url
+
+
 
     @staticmethod
     def _merge_two_dicts(x, y):
