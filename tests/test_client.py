@@ -35,13 +35,11 @@ class TestStringMethods(unittest.TestCase):
     def test_login_logout_and_get_MolgenisUser(self):
         s = molgenis.Session(self.api_url)
         response = s.login('admin', 'admin')
-        print(response.json(), s._token)
         s.get(self.user_entity)
         s.logout()
         try:
             s.get(self.user_entity)
         except requests.exceptions.HTTPError as e:
-            print(e)
             self.assertEqual(e.response.status_code, 401)
             self.assertEqual(e.response.json()['errors'][0]['message'], self.no_readmeta_permission_user_msg)
 
@@ -67,7 +65,7 @@ class TestStringMethods(unittest.TestCase):
             self.session.delete(self.ref_entity, 'ref55')
             self.session.delete(self.ref_entity, 'ref57')
         except Exception as e:
-            print(str(e))
+            raise Exception(e)
         response = self.session.add_all(self.ref_entity,
                                         [{"value": "ref55", "label": "label55"},
                                          {"value": "ref57", "label": "label57"}])
@@ -82,7 +80,7 @@ class TestStringMethods(unittest.TestCase):
         try:
             self.session.delete(self.ref_entity, 'ref55')
         except Exception as e:
-            print(str(e))
+            raise Exception(e)
         self.assertEqual('ref55', self.session.add(self.ref_entity, {"value": "ref55", "label": "label55"}))
         self.session.delete(self.ref_entity, 'ref55')
 
@@ -90,12 +88,12 @@ class TestStringMethods(unittest.TestCase):
         try:
             self.session.delete(self.ref_entity, 'ref55')
         except Exception as e:
-            print(str(e))
+            raise Exception(e)
         self.assertEqual('ref55', self.session.add(self.ref_entity, {"value": "ref55", "label": "label55"}))
         try:
             self.session.update_one(self.ref_entity, 'ref55', 'label', 'updated-label55');
         except Exception as e:
-            print(str(e))
+            raise Exception(e)
         item55 = self.session.get_by_id(self.ref_entity, "ref55", ["label"])
         self.assertEqual("updated-label55", item55["label"])
         self.session.delete(self.ref_entity, 'ref55')
@@ -104,7 +102,7 @@ class TestStringMethods(unittest.TestCase):
         try:
             self.session.delete(self.ref_entity, 'ref55')
         except Exception as e:
-            print(str(e))
+            raise Exception(e)
         self.assertEqual('ref55', self.session.add(self.ref_entity, value="ref55", label="label55"))
         item55 = self.session.get(self.ref_entity, q="value==ref55")[0]
         self.assertEqual({"value": "ref55", "label": "label55", "_href": "/api/v2/" + self.ref_entity + "/ref55"},
@@ -115,7 +113,7 @@ class TestStringMethods(unittest.TestCase):
         try:
             self.session.delete(self.ref_entity, 'ref55')
         except Exception as e:
-            print(str(e))
+            raise Exception(e)
         self.assertEqual('ref55', self.session.add(self.ref_entity, {"value": "ref55"}, label="label55"))
         item55 = self.session.get(self.ref_entity, q="value==ref55")[0]
         self.assertEqual({"value": "ref55", "label": "label55", "_href": "/api/v2/" + self.ref_entity + "/ref55"},
@@ -143,12 +141,13 @@ class TestStringMethods(unittest.TestCase):
     def test_get_expand(self):
         data = self.session.get(self.ref_entity.replace('Ref', ''), expand='xcomputedxref')
         first_item = data[0]
-        expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Chromosome":"str1", "Position": 5}
+        expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Chromosome": "str1", "Position": 5}
         self.assertEqual(len(first_item), 47)
         self.assertEqual(first_item['xcomputedxref'], expected)
 
     def test_get_expand_attrs(self):
-        data = self.session.get(self.ref_entity.replace('Ref', ''), expand='xcomputedxref', attributes='id,xcomputedxref')
+        data = self.session.get(self.ref_entity.replace('Ref', ''), expand='xcomputedxref',
+                                attributes='id,xcomputedxref')
         first_item = data[0]
         expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Chromosome": "str1", "Position": 5}
         self.assertEqual(len(first_item), 3)
@@ -160,11 +159,11 @@ class TestStringMethods(unittest.TestCase):
 
     def test_get_attribute_meta(self):
         meta = self.session.get_attribute_meta_data(self.user_entity, 'username')
-        self.assertEqual({'labelAttribute': True, 'isAggregatable': False, 'name': 'username',
-                          'auto': False, 'nillable': False, 'label': 'Username', 'lookupAttribute': True,
-                          'visible': True, 'readOnly': True, 'href': '/api/v1/sys_sec_User/meta/username',
-                          'enumOptions': [], 'fieldType': 'STRING', 'maxLength': 255, 'attributes': [],
-                          'unique': True},
+        self.assertEqual({'href': '/api/v1/sys_sec_User/meta/username', 'fieldType': 'STRING', 'name': 'username',
+                          'label': 'Username', 'attributes': [], 'enumOptions': [], 'maxLength': 255, 'auto': False,
+                          'nillable': False, 'readOnly': True, 'labelAttribute': True, 'unique': True, 'visible': True,
+                          'lookupAttribute': True, 'isAggregatable': False,
+                          'validationExpression': "$('username').matches(/^[\\S].+[\\S]$/).value()"},
                          meta)
 
     def test_build_api_url_complex(self):
@@ -200,10 +199,9 @@ class TestStringMethods(unittest.TestCase):
         expected = 'https://test.frl/api/test?attrs=y(*),*&sort=x'
         self.assertEqual(generated_url, expected)
 
-
     def test_build_api_url_error(self):
         base_url = 'https://test.frl/api/test'
-        possible_options = {'q': [{"field":"x", "operator":"EQUALS", "value":"1"}],
+        possible_options = {'q': [{"field": "x", "operator": "EQUALS", "value": "1"}],
                             'attrs': [None, 'y'],
                             'num': 100,
                             'start': 0,

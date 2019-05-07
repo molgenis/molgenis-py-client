@@ -93,6 +93,7 @@ sess
         start -- the index of the first row to retrieve (zero indexed)
         sortColumn -- the attribute to sort on
         sortOrder -- the order to sort in
+        raw -- when true, the complete REST response will be returned, rather than the data items
 
         Examples:
         session.get('Person')
@@ -271,3 +272,4 @@ sess
         z = x.copy()
         z.update(y)
         return z
+#json.loads(response.content.decode("utf-8"))['errors'][0]['message']
