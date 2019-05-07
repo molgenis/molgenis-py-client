@@ -12,7 +12,6 @@ except ImportError:
 
 class Session:
     """Representation of a session with the MOLGENIS REST API.
-sess
     Usage:
     >>> session = Session('http://localhost:8080/api/')
     >>> session.login('user', 'password')
@@ -59,7 +58,7 @@ sess
         return response
 
     def get_by_id(self, entity, id, attributes=None, expand=None):
-        '''Retrieves a single entity row from an entity repository.
+        """Retrieves a single entity row from an entity repository.
 
         Args:
         entity -- fully qualified name of the entity
@@ -69,7 +68,7 @@ sess
 
         Examples:
         session.get('Person', 'John')
-        '''
+        """
         response = self._session.get(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id),
                                      headers=self._get_token_header(),
                                      params={"attributes": attributes, "expand": expand})
@@ -86,24 +85,28 @@ sess
 
         Args:
         entity -- fully qualified name of the entity
-        q -- query in json form, see the MOLGENIS REST API v2 documentation for details
+        q -- query in rsql format, see our RSQL documentation for details
+            (https://molgenis.gitbooks.io/molgenis/content/developer_documentation/ref-RSQL.html)
         attributes -- The list of attributes to retrieve
         expand -- the attributes to expand
-        num -- the amount of entity rows to retrieve
+        num -- the amount of entity rows to retrieve (maximum is 10,000)
         start -- the index of the first row to retrieve (zero indexed)
         sortColumn -- the attribute to sort on
         sortOrder -- the order to sort in
-        raw -- when true, the complete REST response will be returned, rather than the data items
+        raw -- when true, the complete REST response will be returned, rather than the data items alone
 
         Examples:
-        session.get('Person')
+        >>> session = Session('http://localhost:8080/api/')
+        >>> session.get('Person')
+        >>> session.get(entity='Person', q='name=="Henk"', attributes=['name', 'age'])
+        >>> session.get(entity='Person', sort_column='age', sort_order='desc')
+        >>> session.get('Person', raw=True)
         """
-        possible_options = {'q':q,
-                            'attrs':[attributes, expand],
-                            'num':num,
-                            'start':start,
-                            'sort':[sort_column, sort_order]}
-
+        possible_options = {'q': q,
+                            'attrs': [attributes, expand],
+                            'num': num,
+                            'start': start,
+                            'sort': [sort_column, sort_order]}
 
         url = self._build_api_url(self._url + "v2/" + entity, possible_options)
         response = self._session.get(url, headers=self._get_token_header())
@@ -134,9 +137,8 @@ sess
 
         You can have multiple file type attributes.
 
-        >>> session.add('Plot', files={'image': ('expression.jpg', open('~/first-plot.jpg','rb')),
-        'image2': ('expression-large.jpg', open('/Users/me/second-plot.jpg', 'rb'))},
-        data={'name':'IBD-plot'})
+        >>> session.add('Plot', files={'image': ('expression.jpg', open('~/first-plot.jpg','rb')),\
+        'image2': ('expression-large.jpg', open('/Users/me/second-plot.jpg', 'rb'))}, data={'name':'IBD-plot'})
         """
         if not data:
             data = {}
@@ -161,7 +163,7 @@ sess
             return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
         else:
             errors = json.loads(response.content.decode("utf-8"))['errors'][0]['message']
-            return errors
+            raise Exception(errors)
 
     def update_one(self, entity, id_, attr, value):
         """Updates one attribute of a given entity in a table with a given value"""
@@ -232,7 +234,7 @@ sess
             option_value = possible_options[option]
             if option == 'q' and option_value:
                 if type(option_value) == list:
-                    raise TypeError('Your query should be specified in rsql format.')
+                    raise TypeError('Your query should be specified in RSQL format.')
                 else:
                     operators.append('{}={}'.format(option, option_value))
             elif option == 'sort':
@@ -240,31 +242,30 @@ sess
                     if option_value[1]:
                         operators.append('sort={}:{}'.format(option_value[0], option_value[1]))
                     else:
-                        operators.append('sort='+option_value[0])
+                        operators.append('sort=' + option_value[0])
             elif option == 'attrs':
                 attrs_operator = []
                 if option_value[0]:
                     attrs_operator = option_value[0].split(',')
                     if option_value[1]:
                         expands = option_value[1].split(',')
-                        attrs_operator = [operator+'(*)' if operator in expands else operator for operator in attrs_operator]
+                        attrs_operator = [operator + '(*)' if operator in expands else operator for operator in
+                                          attrs_operator]
                     operators.append('attrs=' + ','.join(attrs_operator))
                 elif option_value[1]:
                     expands = option_value[1].split(',')
-                    attrs_operator = [attr+'(*)' for attr in expands]
+                    attrs_operator = [attr + '(*)' for attr in expands]
                     attrs_operator.append('*')
-                    operators.append('attrs='+','.join(attrs_operator))
-            elif option_value and not (option == 'num' and option_value ==100):
+                    operators.append('attrs=' + ','.join(attrs_operator))
+            elif option_value and not (option == 'num' and option_value == 100):
                 operators.append('{}={}'.format(option, option_value))
 
         url = '{}?{}'.format(base_url, '&'.join(operators))
 
-        if url == base_url+'?':
+        if url == base_url + '?':
             return base_url
         else:
             return url
-
-
 
     @staticmethod
     def _merge_two_dicts(x, y):
@@ -272,4 +273,4 @@ sess
         z = x.copy()
         z.update(y)
         return z
-#json.loads(response.content.decode("utf-8"))['errors'][0]['message']
+# json.loads(response.content.decode("utf-8"))['errors'][0]['message']
