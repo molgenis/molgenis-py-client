@@ -80,7 +80,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(['ref55', 'ref57'], response)
         item55 = self.session.get(self.ref_entity, q="value==ref55")[0]
         self.assertEqual({"value": "ref55", "label": "label55", "_href": "/api/v2/" + self.ref_entity + "/ref55"},
-                        item55)
+                         item55)
         self.session.delete(self.ref_entity, 'ref55')
         self.session.delete(self.ref_entity, 'ref57')
 
@@ -94,7 +94,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_delete_list(self):
         self._try_add(self.ref_entity, [{"value": "ref55", "label": "label55"},
-                                         {"value": "ref57", "label": "label57"}])
+                                        {"value": "ref57", "label": "label57"}])
         response = self.session.delete_list(self.ref_entity, ['ref55', 'ref57'])
         self.assertEqual(str(response), '<Response [204]>', 'Check status code')
         items = self.session.get(self.ref_entity)
