@@ -1,7 +1,5 @@
 import unittest
 
-import requests
-
 import molgenis.client as molgenis
 
 
@@ -12,7 +10,7 @@ class TestStringMethods(unittest.TestCase):
 
     api_url = "http://localhost:8080/api/"
 
-    no_readmeta_permission_user_msg = "No 'Read metadata' permission on entity type 'User' with id 'sys_sec_User'."
+    no_readmeta_permission_user_msg = "401 Client Error:  for url: http://localhost:8080/api/v2/sys_sec_User: No 'Read metadata' permission on entity type 'User' with id 'sys_sec_User'."
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
     session = molgenis.Session(api_url)
@@ -53,17 +51,17 @@ class TestStringMethods(unittest.TestCase):
         s.logout()
         try:
             s.get(self.user_entity)
-        except requests.exceptions.HTTPError as e:
-            self.assertEqual(e.response.status_code, 401)
-            self.assertEqual(e.response.json()['errors'][0]['message'], self.no_readmeta_permission_user_msg)
+        except Exception as e:
+            message = e.args[0]
+            self.assertEqual(message, self.no_readmeta_permission_user_msg)
 
     def test_no_login_and_get_MolgenisUser(self):
         s = molgenis.Session(self.api_url)
         try:
             s.get(self.user_entity)
-        except requests.exceptions.HTTPError as e:
-            self.assertEqual(e.response.status_code, 401)
-            self.assertEqual(e.response.json()['errors'][0]['message'], self.no_readmeta_permission_user_msg)
+        except Exception as e:
+            message = e.args[0]
+            self.assertEqual(message, self.no_readmeta_permission_user_msg)
 
     def test_upload_zip(self):
         response = self.session.upload_zip('./resources/sightings_test.zip').split('/')
@@ -85,6 +83,14 @@ class TestStringMethods(unittest.TestCase):
                         item55)
         self.session.delete(self.ref_entity, 'ref55')
         self.session.delete(self.ref_entity, 'ref57')
+
+    def test_add_all_error(self):
+        try:
+            self.session.add_all(self.ref_entity, [{"value": "ref55"}])
+        except Exception as e:
+            message = e.args[0]
+            expected = "400 Client Error:  for url: http://localhost:8080/api/v2/org_molgenis_test_python_TypeTestRef: The attribute 'label' of entity 'org_molgenis_test_python_TypeTestRef' can not be null."
+            self.assertEqual(expected, message)
 
     def test_delete_list(self):
         self._try_add(self.ref_entity, [{"value": "ref55", "label": "label55"},
@@ -111,6 +117,14 @@ class TestStringMethods(unittest.TestCase):
         item55 = self.session.get_by_id(self.ref_entity, "ref55", ["label"])
         self.assertEqual("updated-label55", item55["label"])
         self.session.delete(self.ref_entity, 'ref55')
+
+    def test_update_one_error(self):
+        try:
+            self.session.update_one(self.ref_entity, 'ref555', 'label', 'updated-label555');
+        except Exception as e:
+            message = e.args[0]
+            expected = "404 Client Error:  for url: http://localhost:8080/api/v1/org_molgenis_test_python_TypeTestRef/ref555/label: Unknown entity with 'value' 'ref555' of type 'TypeTestRef'."
+            self.assertEqual(expected, message)
 
     def test_add_kwargs(self):
         self._try_delete(self.ref_entity, ['ref55'])

@@ -1,7 +1,7 @@
 import json
 import os
-
 import requests
+import sys
 
 try:
     from urllib.parse import quote_plus
@@ -10,9 +10,15 @@ except ImportError:
     from urllib import quote_plus
 
 
+class MolgenisRequestError(Exception):
+    def __init__(self, error):
+        self.message = error
+
+
 class Session:
     """Representation of a session with the MOLGENIS REST API.
     Usage:
+
     >>> session = Session('http://localhost:8080/api/')
     >>> session.login('user', 'password')
     >>> session.get('Person')
@@ -41,23 +47,26 @@ class Session:
         response = self._session.post(self._url + "v1/login",
                                       data=json.dumps({"username": username, "password": password}),
                                       headers={"Content-Type": "application/json"})
-        if response.status_code == 200:
-            self._token = response.json()["token"]
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
 
-        response.raise_for_status()
-        return response
+        self._token = response.json()['token']
 
     def logout(self):
         """Logs out the current session token."""
         response = self._session.post(self._url + "v1/logout",
                                       headers=self._get_token_header())
-        if response.status_code == 200:
-            self._token = None
-            self._session.cookies.clear()
-        response.raise_for_status()
-        return response
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
 
-    def get_by_id(self, entity, id, attributes=None, expand=None):
+        self._token = None
+        self._session.cookies.clear()
+
+    def get_by_id(self, entity, id_, attributes=None, expand=None):
         """Retrieves a single entity row from an entity repository.
 
         Args:
@@ -69,15 +78,17 @@ class Session:
         Examples:
         session.get('Person', 'John')
         """
-        response = self._session.get(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id),
+        response = self._session.get(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_),
                                      headers=self._get_token_header(),
                                      params={"attributes": attributes, "expand": expand})
-        if response.status_code == 200:
-            result = response.json()
-            response.close()
-            return result
-        response.raise_for_status()
-        return response
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
+        result = response.json()
+        response.close()
+        return result
 
     def get(self, entity, q=None, attributes=None, num=100, start=0, sort_column=None, sort_order=None, raw=False,
             expand=None):
@@ -110,13 +121,16 @@ class Session:
 
         url = self._build_api_url(self._url + "v2/" + entity, possible_options)
         response = self._session.get(url, headers=self._get_token_header())
-        if response.status_code == 200:
-            if not raw:
-                return response.json()["items"]
-            else:
-                return response.json()
-        response.raise_for_status()
-        return response
+
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
+        if not raw:
+            return response.json()["items"]
+        else:
+            return response.json()
 
     def add(self, entity, data=None, files=None, **kwargs):
         """Adds a single entity row to an entity repository.
@@ -149,35 +163,48 @@ class Session:
                                       headers=self._get_token_header(),
                                       data=self._merge_two_dicts(data, kwargs),
                                       files=files)
-        if response.status_code == 201:
-            return response.headers["Location"].split("/")[-1]
-        response.raise_for_status()
-        return response
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
+        return response.headers["Location"].split("/")[-1]
 
     def add_all(self, entity, entities):
         """Adds multiple entity rows to an entity repository."""
         response = self._session.post(self._url + "v2/" + quote_plus(entity),
                                       headers=self._get_token_header_with_content_type(),
                                       data=json.dumps({"entities": entities}))
-        if response.status_code == 201:
-            return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
-        else:
-            errors = json.loads(response.content.decode("utf-8"))['errors'][0]['message']
-            raise Exception(errors)
+
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
+        return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
 
     def update_one(self, entity, id_, attr, value):
         """Updates one attribute of a given entity in a table with a given value"""
         response = self._session.put(self._url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
                                      headers=self._get_token_header_with_content_type(),
                                      data=json.dumps(value))
-        response.raise_for_status()
+
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
         return response
 
     def delete(self, entity, id_):
         """Deletes a single entity row from an entity repository."""
         response = self._session.delete(self._url + "v1/" + quote_plus(entity) + "/" + quote_plus(id_),
                                         headers=self._get_token_header())
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
         return response
 
     def delete_list(self, entity, entities):
@@ -185,21 +212,33 @@ class Session:
         response = self._session.delete(self._url + "v2/" + quote_plus(entity),
                                         headers=self._get_token_header_with_content_type(),
                                         data=json.dumps({"entityIds": entities}))
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
         return response
 
     def get_entity_meta_data(self, entity):
         """Retrieves the metadata for an entity repository."""
         response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
                                      headers=self._get_token_header())
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
         return response.json()
 
     def get_attribute_meta_data(self, entity, attribute):
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
                                      headers=self._get_token_header())
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
         return response.json()
 
     def upload_zip(self, meta_data_zip):
@@ -208,10 +247,13 @@ class Session:
         files = {'file': open(os.path.abspath(meta_data_zip), 'rb')}
         url = self._url.strip('/api/') + '/plugin/importwizard/importFile'
         response = requests.post(url, headers=header, files=files)
-        if response.status_code == 201:
-            return response.content.decode("utf-8")
-        response.raise_for_status()
-        return response
+
+        try:
+            response.raise_for_status()
+        except Exception as ex:
+            self._raise_exception(ex)
+
+        return response.content.decode("utf-8")
 
     def _get_token_header(self):
         """Creates an 'x-molgenis-token' header for the current session."""
@@ -273,4 +315,15 @@ class Session:
         z = x.copy()
         z.update(y)
         return z
-# json.loads(response.content.decode("utf-8"))['errors'][0]['message']
+
+    @staticmethod
+    def _raise_exception(ex):
+        """Raises an exception with error message from molgenis"""
+        code = ex.response.status_code
+        message = ex.args[0]
+        if ex.response.content:
+            error = json.loads(ex.response.content.decode("utf-8"))['errors'][0]['message']
+            errorMsg = '{}: {}'.format(message, error)
+            raise MolgenisRequestError(errorMsg)
+        else:
+            raise MolgenisRequestError('{}'.format(message))
