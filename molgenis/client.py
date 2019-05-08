@@ -1,7 +1,6 @@
 import json
 import os
 import requests
-import sys
 
 try:
     from urllib.parse import quote_plus
@@ -11,8 +10,10 @@ except ImportError:
 
 
 class MolgenisRequestError(Exception):
-    def __init__(self, error):
+    def __init__(self, error, response=False):
         self.message = error
+        if response:
+            self.response = response
 
 
 class Session:
@@ -324,6 +325,6 @@ class Session:
         if ex.response.content:
             error = json.loads(ex.response.content.decode("utf-8"))['errors'][0]['message']
             errorMsg = '{}: {}'.format(message, error)
-            raise MolgenisRequestError(errorMsg)
+            raise MolgenisRequestError(errorMsg, ex.response)
         else:
             raise MolgenisRequestError('{}'.format(message))
