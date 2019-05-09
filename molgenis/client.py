@@ -120,7 +120,7 @@ class Session:
                             'start': start,
                             'sort': [sort_column, sort_order]}
 
-        url = self._build_api_url(self._url + "v2/" + entity, possible_options)
+        url = self._build_api_url(self._url + "v2/" + quote_plus(entity), possible_options)
         response = self._session.get(url, headers=self._get_token_header())
 
         try:
