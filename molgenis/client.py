@@ -50,7 +50,7 @@ class Session:
                                       headers={"Content-Type": "application/json"})
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         self._token = response.json()['token']
@@ -61,7 +61,7 @@ class Session:
                                       headers=self._get_token_header())
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         self._token = None
@@ -84,7 +84,7 @@ class Session:
                                      params={"attributes": attributes, "expand": expand})
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         result = response.json()
@@ -125,7 +125,7 @@ class Session:
 
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         if not raw:
@@ -166,7 +166,7 @@ class Session:
                                       files=files)
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response.headers["Location"].split("/")[-1]
@@ -179,7 +179,7 @@ class Session:
 
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
@@ -192,7 +192,7 @@ class Session:
 
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response
@@ -203,7 +203,7 @@ class Session:
                                         headers=self._get_token_header())
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response
@@ -215,7 +215,7 @@ class Session:
                                         data=json.dumps({"entityIds": entities}))
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response
@@ -226,7 +226,7 @@ class Session:
                                      headers=self._get_token_header())
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response.json()
@@ -237,7 +237,7 @@ class Session:
                                      headers=self._get_token_header())
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response.json()
@@ -251,7 +251,7 @@ class Session:
 
         try:
             response.raise_for_status()
-        except Exception as ex:
+        except requests.RequestException as ex:
             self._raise_exception(ex)
 
         return response.content.decode("utf-8")
@@ -269,6 +269,35 @@ class Session:
         headers.update({"Content-Type": "application/json"})
         return headers
 
+    @staticmethod
+    def _process_query(option_value, option):
+        """Add query to operators and raise exception when query value is invalid"""
+        if type(option_value) == list:
+            raise TypeError('Please specify your query in the RSQL format.')
+        else:
+            return '{}={}'.format(option, option_value)
+
+    @staticmethod
+    def _process_sort(option_value):
+        if option_value[0] and not option_value[1]:
+            return 'sort=' + option_value[0]
+        elif option_value[0] and option_value[1]:
+            return 'sort={}:{}'.format(option_value[0], option_value[1])
+
+    @staticmethod
+    def _split_if_not_none(operator):
+        return operator.split(',') if operator else []
+
+    def _merge_attrs(self, attr_expands):
+        attrs = self._split_if_not_none(attr_expands[0])
+        expands = self._split_if_not_none(attr_expands[1])
+        if len(attrs) == 0 and len(expands) > 0:
+            attrs.append('*')
+        unique_attrs = set(attrs + expands)
+        attrs_operator = [attr + '(*)' if attr in expands else attr for attr in unique_attrs]
+        if attrs_operator:
+            return 'attrs={}'.format(','.join(attrs_operator))
+
     def _build_api_url(self, base_url, possible_options):
         """This function builds the api url for the get request, converting the api v1 compliant operators to v2
         operators to enable backwards compatibility of the python api when switching to api v2"""
@@ -276,33 +305,19 @@ class Session:
         for option in possible_options:
             option_value = possible_options[option]
             if option == 'q' and option_value:
-                if type(option_value) == list:
-                    raise TypeError('Your query should be specified in RSQL format.')
-                else:
-                    operators.append('{}={}'.format(option, option_value))
+                q = self._process_query(option_value, option)
+                if q:
+                    operators.append(q)
             elif option == 'sort':
-                if option_value[0]:
-                    if option_value[1]:
-                        operators.append('sort={}:{}'.format(option_value[0], option_value[1]))
-                    else:
-                        operators.append('sort=' + option_value[0])
+                sort = self._process_sort(option_value)
+                if sort:
+                    operators.append(sort)
             elif option == 'attrs':
-                attrs_operator = []
-                if option_value[0]:
-                    attrs_operator = option_value[0].split(',')
-                    if option_value[1]:
-                        expands = option_value[1].split(',')
-                        attrs_operator = [operator + '(*)' if operator in expands else operator for operator in
-                                          attrs_operator]
-                    operators.append('attrs=' + ','.join(attrs_operator))
-                elif option_value[1]:
-                    expands = option_value[1].split(',')
-                    attrs_operator = [attr + '(*)' for attr in expands]
-                    attrs_operator.append('*')
-                    operators.append('attrs=' + ','.join(attrs_operator))
+                attrs = self._merge_attrs(option_value)
+                if attrs:
+                    operators.append(attrs)
             elif option_value and not (option == 'num' and option_value == 100):
                 operators.append('{}={}'.format(option, option_value))
-
         url = '{}?{}'.format(base_url, '&'.join(operators))
 
         if url == base_url + '?':
@@ -320,11 +335,10 @@ class Session:
     @staticmethod
     def _raise_exception(ex):
         """Raises an exception with error message from molgenis"""
-        code = ex.response.status_code
         message = ex.args[0]
         if ex.response.content:
             error = json.loads(ex.response.content.decode("utf-8"))['errors'][0]['message']
-            errorMsg = '{}: {}'.format(message, error)
-            raise MolgenisRequestError(errorMsg, ex.response)
+            error_msg = '{}: {}'.format(message, error)
+            raise MolgenisRequestError(error_msg, ex.response)
         else:
             raise MolgenisRequestError('{}'.format(message))
