@@ -156,28 +156,6 @@ class TestStringMethods(unittest.TestCase):
 
     def test_get_raw(self):
         data = self.session.get(self.ref_entity, raw=True)
-        expected = {'href': '/api/v2/org_molgenis_test_python_TypeTestRef',
-                    'meta': {'href': '/api/v2/org_molgenis_test_python_TypeTestRef',
-                             'hrefCollection': '/api/v2/org_molgenis_test_python_TypeTestRef',
-                             'name': 'org_molgenis_test_python_TypeTestRef', 'label': 'TypeTestRef', 'attributes': [
-                            {'href': '/api/v2/org_molgenis_test_python_TypeTestRef/meta/value', 'fieldType': 'STRING',
-                             'name': 'value', 'label': 'value', 'attributes': [], 'maxLength': 255, 'auto': False,
-                             'nillable': False, 'readOnly': True, 'labelAttribute': False, 'unique': True,
-                             'visible': True, 'lookupAttribute': True, 'isAggregatable': False},
-                            {'href': '/api/v2/org_molgenis_test_python_TypeTestRef/meta/label', 'fieldType': 'STRING',
-                             'name': 'label', 'label': 'label', 'attributes': [], 'maxLength': 255, 'auto': False,
-                             'nillable': False, 'readOnly': False, 'labelAttribute': True, 'unique': False,
-                             'visible': True, 'lookupAttribute': True, 'isAggregatable': False}],
-                             'labelAttribute': 'label', 'idAttribute': 'value', 'lookupAttributes': ['value', 'label'],
-                             'isAbstract': False, 'writable': True, 'languageCode': 'en',
-                             'permissions': ['READ_DATA', 'ADD_DATA', 'UPDATE_DATA', 'AGGREGATE_DATA', 'READ_METADATA',
-                                             'DELETE_METADATA', 'COUNT_DATA', 'UPDATE_METADATA', 'DELETE_DATA']},
-                    'start': 0, 'num': 100, 'total': 5, 'items': [
-                {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref1', 'value': 'ref1', 'label': 'label1'},
-                {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref2', 'value': 'ref2', 'label': 'label2'},
-                {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref3', 'value': 'ref3', 'label': 'label3'},
-                {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref4', 'value': 'ref4', 'label': 'label4'},
-                {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref5', 'value': 'ref5', 'label': 'label5'}]}
         self.assertTrue('meta' in data)
         self.assertTrue('items' in data)
 
