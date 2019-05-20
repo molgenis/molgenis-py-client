@@ -113,7 +113,7 @@ class TestStringMethods(unittest.TestCase):
         self._try_delete(self.ref_entity, ['ref55'])
         self.assertEqual('ref55', self.session.add(self.ref_entity, {"value": "ref55", "label": "label55"}))
         try:
-            self.session.update_one(self.ref_entity, 'ref55', 'label', 'updated-label55');
+            self.session.update_one(self.ref_entity, 'ref55', 'label', 'updated-label55')
         except Exception as e:
             raise Exception(e)
         item55 = self.session.get_by_id(self.ref_entity, "ref55", ["label"])
@@ -122,7 +122,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_update_one_error(self):
         try:
-            self.session.update_one(self.ref_entity, 'ref555', 'label', 'updated-label555');
+            self.session.update_one(self.ref_entity, 'ref555', 'label', 'updated-label555')
         except Exception as e:
             message = e.args[0]
             expected = "404 Client Error:  for url: http://localhost:8080/api/v1/org_molgenis_test_python_TypeTestRef" \
@@ -204,7 +204,6 @@ class TestStringMethods(unittest.TestCase):
                             'start': 1000,
                             'sort': ['x', 'desc']}
         generated_url = self.session._build_api_url(base_url, possible_options)
-        expected = 'https://test.frl/api/test?q=x==1&attrs=x,y(*)&num=1000&start=1000&sort=x:desc'
         # Only check the contents of the operators because their order is random
         expected_sort = 'x:desc'
         expected_attrs = ['x', 'y(*)']
