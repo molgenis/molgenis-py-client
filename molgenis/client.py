@@ -6,6 +6,7 @@ try:
     from urllib.parse import quote_plus
 except ImportError:
     # Python 2
+    # noinspection PyUnresolvedReferences
     from urllib import quote_plus
 
 
