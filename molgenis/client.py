@@ -280,6 +280,7 @@ class Session:
 
     @staticmethod
     def _process_sort(option_value):
+        """Converts the sort and sort order to a sort attribute compatible with the REST API v2"""
         if option_value[0] and not option_value[1]:
             return 'sort=' + option_value[0]
         elif option_value[0] and option_value[1]:
@@ -287,15 +288,29 @@ class Session:
 
     @staticmethod
     def _split_if_not_none(operator):
+        """Returns empty list if operator is None, else splits the operator string by comma to return a list"""
         return operator.split(',') if operator else []
 
+    @staticmethod
+    def _update_operators_if_operator_exists(operators, operator):
+        """Append operator to operators if the operator exists. Returns the new operators"""
+        if operator:
+            operators.append(operator)
+        return operators
+
     def _merge_attrs(self, attr_expands):
+        """Converts the attrs and expands to an attr attribute compatible with the REST API v2"""
+        # Make a list of attrs and expands
         attrs = self._split_if_not_none(attr_expands[0])
         expands = self._split_if_not_none(attr_expands[1])
+        # If only expands is specified, all attributes should be returned, so add a wildcard to the list
         if len(attrs) == 0 and len(expands) > 0:
             attrs.append('*')
+        # Get a set of all unique attributes (expands and attributes merged)
         unique_attrs = set(attrs + expands)
+        # Iterate over all unique attributes and expand by adding (*) if the attributes is in the expands list
         attrs_operator = [attr + '(*)' if attr in expands else attr for attr in unique_attrs]
+        # If there is an attrs operator, return it with its prefix and comma separated
         if attrs_operator:
             return 'attrs={}'.format(','.join(attrs_operator))
 
@@ -307,16 +322,13 @@ class Session:
             option_value = possible_options[option]
             if option == 'q' and option_value:
                 q = self._process_query(option_value, option)
-                if q:
-                    operators.append(q)
+                operators = self._update_operators_if_operator_exists(operators, q)
             elif option == 'sort':
                 sort = self._process_sort(option_value)
-                if sort:
-                    operators.append(sort)
+                operators = self._update_operators_if_operator_exists(operators, sort)
             elif option == 'attrs':
                 attrs = self._merge_attrs(option_value)
-                if attrs:
-                    operators.append(attrs)
+                operators = self._update_operators_if_operator_exists(operators, attrs)
             elif option_value and not (option == 'num' and option_value == 100):
                 operators.append('{}={}'.format(option, option_value))
         url = '{}?{}'.format(base_url, '&'.join(operators))
