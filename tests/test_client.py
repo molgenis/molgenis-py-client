@@ -65,6 +65,7 @@ class TestStringMethods(unittest.TestCase):
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
     def test_upload_zip(self):
+        self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
         response = self.session.upload_zip('./resources/sightings_test.zip').split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
@@ -72,6 +73,28 @@ class TestStringMethods(unittest.TestCase):
         while status_info['status'] == 'RUNNING':
             status_info = self.session.get_by_id(run_entity_type, run_id)
         self.assertEqual('FINISHED', status_info['status'])
+
+    def test_delete_row(self):
+        self._try_add(self.ref_entity, [{"value": "ref55", "label": "label55"}])
+        response = self.session.delete(self.ref_entity, 'ref55')
+        self.assertEqual(str(response), '<Response [204]>', 'Check status code')
+        items = self.session.get(self.ref_entity)
+        self.assertEqual(len(items), 5, 'Check if items that were not deleted are still present')
+        no_items = self.session.get(self.ref_entity, q='value=in=(ref55)')
+        self.assertEqual(len(no_items), 0, 'Check if item that was deleted is really deleted')
+
+    def test_delete_data(self):
+        self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
+        response = self.session.upload_zip('./resources/sightings_test.zip').split('/')
+        run_entity_type = response[-2]
+        run_id = response[-1]
+        status_info = self.session.get_by_id(run_entity_type, run_id)
+        while status_info['status'] == 'RUNNING':
+            status_info = self.session.get_by_id(run_entity_type, run_id)
+        self.session.delete('org_molgenis_test_python_sightings')
+        number_of_rows = self.session.get('org_molgenis_test_python_sightings', raw=True)['total']
+        self.assertEqual(0, number_of_rows)
+
 
     def test_add_all(self):
         self._try_delete(self.ref_entity, ['ref55', 'ref57'])

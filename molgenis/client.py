@@ -198,10 +198,13 @@ class Session:
 
         return response
 
-    def delete(self, entity, id_):
-        """Deletes a single entity row from an entity repository."""
-        response = self._session.delete(self._url + "v1/" + quote_plus(entity) + "/" + quote_plus(id_),
-                                        headers=self._get_token_header())
+    def delete(self, entity, id_=None):
+        """Deletes a single entity row or all rows (if id_ not specified) from an entity repository."""
+        url = self._url + "v1/" + quote_plus(entity)
+        if id_:
+            url = url + "/" + quote_plus(id_)
+
+        response = self._session.delete(url, headers=self._get_token_header())
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
