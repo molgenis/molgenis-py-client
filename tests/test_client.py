@@ -10,8 +10,8 @@ class TestStringMethods(unittest.TestCase):
 
     api_url = "http://localhost:8080/api/"
 
-    no_readmeta_permission_user_msg = "401 Client Error:  for url: http://localhost:8080/api/v2/sys_sec_User: " \
-                                      "No 'Read metadata' permission on entity type 'User' with id 'sys_sec_User'."
+    no_readmeta_permission_user_msg = "401 Client Error:  for url: {}v2/sys_sec_User: No 'Read metadata' " \
+                                      "permission on entity type 'User' with id 'sys_sec_User'.".format(api_url)
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
     session = molgenis.Session(api_url)

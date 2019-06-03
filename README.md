@@ -34,3 +34,14 @@ pip install -e .
 ```
 
 If you want to leave the environment, use `deactivate`.
+
+### Using the API client
+Documentation for the usage of this API can be found in the
+[MOLGENIS documentation](https://molgenis.gitbooks.io/molgenis/content/developer_documentation/ref-python.html).
+
+### Running the tests
+The tests run against a running molgenis on `localhost:8080`. To change this, alter the URL on line 11 in the
+`test_client.py` file. To run the tests, run the following command:
+```
+python test_client.py
+```
