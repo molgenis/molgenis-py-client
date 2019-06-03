@@ -43,5 +43,6 @@ Documentation for the usage of this API can be found in the
 The tests run against a running molgenis on `localhost:8080`. To change this, alter the URL on line 11 in the
 `test_client.py` file. To run the tests, run the following command:
 ```
-python test_client.py
+python setup.py test
 ```
+Alternatively, run the tests by clicking the run-button in PyCharm.

@@ -1,4 +1,4 @@
-import unittest
+import unittest, sys, os
 
 import molgenis.client as molgenis
 
@@ -33,7 +33,10 @@ class TestStringMethods(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        response = cls.session.upload_zip('./resources/all_datatypes.zip').split('/')
+        cwd = os.getcwd()
+        if cwd.endswith('tests'):
+            os.chdir('..')
+        response = cls.session.upload_zip('./tests/resources/all_datatypes.zip').split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = cls.session.get_by_id(run_entity_type, run_id)
@@ -66,7 +69,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_upload_zip(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./resources/sightings_test.zip').split('/')
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip').split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = self.session.get_by_id(run_entity_type, run_id)
@@ -85,7 +88,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_delete_data(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./resources/sightings_test.zip').split('/')
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip').split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = self.session.get_by_id(run_entity_type, run_id)
