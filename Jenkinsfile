@@ -16,7 +16,7 @@ pipeline {
                         env.PYPI_PASSWORD = sh(script: 'vault read -field=password secret/ops/account/pypi', returnStdout: true)
                         env.GITHUB_TOKEN = sh(script: 'vault read -field=value secret/ops/token/github', returnStdout: true)
                         env.SONAR_TOKEN = sh(script: 'vault read -field=value secret/ops/token/sonar', returnStdout: true)
-                        env.CI_PASSWORD = sh(script: 'vault read -field=password secret/dev/acount/master.dev.molgenis.org', returnStdout: true)
+                        env.CI_PASSWORD = sh(script: 'vault read -field=password secret/dev/account/master.dev.molgenis.org', returnStdout: true)
                         env.CI_HOST = 'https://master.dev.molgenis.org'
                     }
                 }
