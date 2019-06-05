@@ -1,4 +1,4 @@
-import unittest
+import unittest, sys, os
 
 import molgenis.client as molgenis
 
@@ -8,14 +8,16 @@ class TestStringMethods(unittest.TestCase):
     Tests the client against a running MOLGENIS.
     """
 
-    api_url = "http://localhost:8080/api/"
+    host = os.getenv('CI_HOST', 'http://localhost:8080')
+    password = os.getenv('CI_PASSWORD', 'admin')
+    api_url = host + "/api/"
 
-    no_readmeta_permission_user_msg = "401 Client Error:  for url: http://localhost:8080/api/v2/sys_sec_User: " \
-                                      "No 'Read metadata' permission on entity type 'User' with id 'sys_sec_User'."
+    no_readmeta_permission_user_msg = "401 Client Error:  for url: {}v2/sys_sec_User: No 'Read metadata' " \
+                                      "permission on entity type 'User' with id 'sys_sec_User'.".format(api_url)
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
     session = molgenis.Session(api_url)
-    session.login('admin', 'admin')
+    session.login('admin', password)
 
     def _try_delete(self, entity_type, entity_ids):
         # Try to remove because if a previous test failed, possibly the refs you're about to add are not removed yet
@@ -33,7 +35,10 @@ class TestStringMethods(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        response = cls.session.upload_zip('./resources/all_datatypes.zip').split('/')
+        cwd = os.getcwd()
+        if cwd.endswith('tests'):
+            os.chdir('..')
+        response = cls.session.upload_zip('./tests/resources/all_datatypes.zip').split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = cls.session.get_by_id(run_entity_type, run_id)
@@ -47,7 +52,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_login_logout_and_get_MolgenisUser(self):
         s = molgenis.Session(self.api_url)
-        s.login('admin', 'admin')
+        s.login('admin', self.password)
         s.get(self.user_entity)
         s.logout()
         try:
@@ -65,13 +70,35 @@ class TestStringMethods(unittest.TestCase):
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
     def test_upload_zip(self):
-        response = self.session.upload_zip('./resources/sightings_test.zip').split('/')
+        self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip').split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = self.session.get_by_id(run_entity_type, run_id)
         while status_info['status'] == 'RUNNING':
             status_info = self.session.get_by_id(run_entity_type, run_id)
         self.assertEqual('FINISHED', status_info['status'])
+
+    def test_delete_row(self):
+        self._try_add(self.ref_entity, [{"value": "ref55", "label": "label55"}])
+        response = self.session.delete(self.ref_entity, 'ref55')
+        self.assertEqual(str(response), '<Response [204]>', 'Check status code')
+        items = self.session.get(self.ref_entity)
+        self.assertEqual(len(items), 5, 'Check if items that were not deleted are still present')
+        no_items = self.session.get(self.ref_entity, q='value=in=(ref55)')
+        self.assertEqual(len(no_items), 0, 'Check if item that was deleted is really deleted')
+
+    def test_delete_data(self):
+        self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip').split('/')
+        run_entity_type = response[-2]
+        run_id = response[-1]
+        status_info = self.session.get_by_id(run_entity_type, run_id)
+        while status_info['status'] == 'RUNNING':
+            status_info = self.session.get_by_id(run_entity_type, run_id)
+        self.session.delete('org_molgenis_test_python_sightings')
+        number_of_rows = self.session.get('org_molgenis_test_python_sightings', raw=True)['total']
+        self.assertEqual(0, number_of_rows)
 
     def test_add_all(self):
         self._try_delete(self.ref_entity, ['ref55', 'ref57'])
@@ -90,8 +117,9 @@ class TestStringMethods(unittest.TestCase):
             self.session.add_all(self.ref_entity, [{"value": "ref55"}])
         except Exception as e:
             message = e.args[0]
-            expected = "400 Client Error:  for url: http://localhost:8080/api/v2/org_molgenis_test_python_TypeTest" \
-                       "Ref: The attribute 'label' of entity 'org_molgenis_test_python_TypeTestRef' can not be null."
+            expected = "400 Client Error:  for url: {}v2/org_molgenis_test_python_TypeTest" \
+                       "Ref: The attribute 'label' of entity 'org_molgenis_test_python_TypeTestRef' can not be null.".format(
+                self.api_url)
             self.assertEqual(expected, message)
 
     def test_delete_list(self):
@@ -125,8 +153,8 @@ class TestStringMethods(unittest.TestCase):
             self.session.update_one(self.ref_entity, 'ref555', 'label', 'updated-label555')
         except Exception as e:
             message = e.args[0]
-            expected = "404 Client Error:  for url: http://localhost:8080/api/v1/org_molgenis_test_python_TypeTestRef" \
-                       "/ref555/label: Unknown entity with 'value' 'ref555' of type 'TypeTestRef'."
+            expected = "404 Client Error:  for url: {}v1/org_molgenis_test_python_TypeTestRef" \
+                       "/ref555/label: Unknown entity with 'value' 'ref555' of type 'TypeTestRef'.".format(self.api_url)
             self.assertEqual(expected, message)
 
     def test_add_kwargs(self):

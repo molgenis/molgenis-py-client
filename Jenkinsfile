@@ -16,6 +16,8 @@ pipeline {
                         env.PYPI_PASSWORD = sh(script: 'vault read -field=password secret/ops/account/pypi', returnStdout: true)
                         env.GITHUB_TOKEN = sh(script: 'vault read -field=value secret/ops/token/github', returnStdout: true)
                         env.SONAR_TOKEN = sh(script: 'vault read -field=value secret/ops/token/sonar', returnStdout: true)
+                        env.CI_PASSWORD = sh(script: 'vault read -field=password secret/dev/account/master.dev.molgenis.org', returnStdout: true)
+                        env.CI_HOST = 'https://master.dev.molgenis.org'
                     }
                 }
                 container('python') {
@@ -32,6 +34,7 @@ pipeline {
             }
             steps {
                 container('python') {
+                    sh "python setup.py test"
                     sh "pip install ."
                 }
                 container('sonar') {
@@ -46,6 +49,7 @@ pipeline {
             steps {
                 milestone 1
                 container('python') {
+                    sh "python setup.py test"
                     sh "pip install ."
                 }
                 container('sonar') {
