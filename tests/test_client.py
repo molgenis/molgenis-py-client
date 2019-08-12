@@ -3,6 +3,17 @@ import unittest, sys, os
 import molgenis.client as molgenis
 
 
+class RepsonseMock:
+    def __init__(self, content):
+        self.content = content
+
+
+class ExceptionMock:
+    def __init__(self, message, response):
+        self.args = [message]
+        self.response = RepsonseMock(response)
+
+
 class TestStringMethods(unittest.TestCase):
     """
     Tests the client against a running MOLGENIS.
@@ -287,6 +298,16 @@ class TestStringMethods(unittest.TestCase):
                             'sort': ['x', None]}
         with self.assertRaises(TypeError):
             self.session._build_api_url(base_url, possible_options)
+
+    def test_raise_exception_with_missing_content(self):
+        msg = 'message'
+        ex = ExceptionMock(msg, None)
+        try:
+            self.session._raise_exception(ex)
+        except Exception as e:
+            message = e.args[0]
+            expected = msg
+            self.assertEqual(expected, message)
 
 
 if __name__ == '__main__':
