@@ -73,12 +73,13 @@ class Session:
 
         Args:
         entity -- fully qualified name of the entity
-        id -- the value for the idAttribute of the entity
+        id_ -- the value for the idAttribute of the entity
         attributes -- The list of attributes to retrieve
-        expand -- the attributes to expand
+        expand -- the attributes to expand, string with commas to separate multiple attributes.
 
         Examples:
-        session.get('Person', 'John')
+        >>> session = Session('http://localhost:8080/api/')
+        >>> session.get(entity='Person', id_='John', expand='name,age')
         """
         possible_options = {'attrs': [attributes, expand]}
 
