@@ -80,9 +80,11 @@ class Session:
         Examples:
         session.get('Person', 'John')
         """
-        response = self._session.get(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_),
-                                     headers=self._get_token_header(),
-                                     params={"attributes": attributes, "expand": expand})
+        possible_options = {'attrs': [attributes, expand]}
+
+        url = self._build_api_url(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
+        response = self._session.get(url, headers=self._get_token_header())
+
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
