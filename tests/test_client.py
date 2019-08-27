@@ -70,6 +70,8 @@ class TestStringMethods(unittest.TestCase):
             s.get(self.user_entity)
         except Exception as e:
             message = e.args[0]
+            response = e.args[1]
+            response.connection.close()
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
     def test_no_login_and_get_MolgenisUser(self):
@@ -78,6 +80,8 @@ class TestStringMethods(unittest.TestCase):
             s.get(self.user_entity)
         except Exception as e:
             message = e.args[0]
+            response = e.args[1]
+            response.connection.close()
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
     def test_upload_zip(self):
@@ -311,4 +315,4 @@ class TestStringMethods(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)
