@@ -249,11 +249,10 @@ class Session:
     def upload_zip(self, meta_data_zip):
         """Uploads a given zip with data and metadata"""
         header = self._get_token_header()
-        zip_file = open(os.path.abspath(meta_data_zip), 'rb')
-        files = {'file': zip_file}
-        url = self._url.strip('/api/') + '/plugin/importwizard/importFile'
-        response = requests.post(url, headers=header, files=files)
-        zip_file.close()
+        with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
+            files = {'file': zip_file}
+            url = self._url.strip('/api/') + '/plugin/importwizard/importFile'
+            response = requests.post(url, headers=header, files=files)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
