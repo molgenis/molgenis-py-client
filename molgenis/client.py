@@ -67,6 +67,7 @@ class Session:
 
         self._token = None
         self._session.cookies.clear()
+        self._session.close
 
     def get_by_id(self, entity, id_, attributes=None, expand=None):
         """Retrieves a single entity row from an entity repository.
