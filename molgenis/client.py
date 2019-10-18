@@ -3,11 +3,12 @@ import os
 import requests
 
 try:
-    from urllib.parse import quote_plus
+    from urllib.parse import quote_plus, urlparse, parse_qs
 except ImportError:
     # Python 2
     # noinspection PyUnresolvedReferences
     from urllib import quote_plus
+    from urlparse import urlparse, parse_qs
 
 
 class MolgenisRequestError(Exception):
@@ -67,6 +68,7 @@ class Session:
 
         self._token = None
         self._session.cookies.clear()
+        self._session.close
 
     def get_by_id(self, entity, id_, attributes=None, expand=None):
         """Retrieves a single entity row from an entity repository.
@@ -92,9 +94,9 @@ class Session:
         response.close()
         return result
 
-    def get(self, entity, q=None, attributes=None, num=100, start=0, sort_column=None, sort_order=None, raw=False,
+    def get(self, entity, q=None, attributes=None, num=None, batch_size=100, start=0, sort_column=None, sort_order=None, raw=False,
             expand=None):
-        """Retrieves entity rows from an entity repository.
+        """Retrieves all entity rows from an entity repository.
 
         Args:
         entity -- fully qualified name of the entity
@@ -102,7 +104,8 @@ class Session:
             (https://molgenis.gitbooks.io/molgenis/content/developer_documentation/ref-RSQL.html)
         attributes -- The list of attributes to retrieve
         expand -- the attributes to expand
-        num -- the amount of entity rows to retrieve (maximum is 10,000)
+        num -- the maximum amount of entity rows to retrieve
+        batch_size - the amount of entity rows to retrieve per time (max. 10.000)
         start -- the index of the first row to retrieve (zero indexed)
         sortColumn -- the attribute to sort on
         sortOrder -- the order to sort in
@@ -115,9 +118,45 @@ class Session:
         >>> session.get(entity='Person', sort_column='age', sort_order='desc')
         >>> session.get('Person', raw=True)
         """
+        if not sort_column:  # Ensure correct ordering for batched retrieval for old Molgenis instances
+            sort_column = self.get_entity_meta_data(entity)['idAttribute']
+
+        batch_start = start
+        items = []
+        while not num or len(items) < num:  # Keep pulling in batches
+            response = self._get_batch(
+                                    entity=entity,
+                                    q=q,
+                                    attributes=attributes,
+                                    batch_size=batch_size,
+                                    start=batch_start,
+                                    sort_column=sort_column,
+                                    sort_order=sort_order,
+                                    raw=True,
+                                    expand=expand)
+            if raw:
+                return response  # Simply return the first batch response JSON
+            else:
+                items.extend(response['items'])
+
+            if 'nextHref' in response:  # There is more to fetch
+                decomposed_url = urlparse(response['nextHref'])
+                query_part_url = parse_qs(decomposed_url.query)
+                batch_start = query_part_url['start'][0]
+            else:
+                break  # We caught them all
+
+        if num:  # Truncate items
+            items = items[:num]
+
+        return items
+
+    def _get_batch(self, entity, q=None, attributes=None, batch_size=100, start=0, sort_column=None, sort_order=None,
+                   raw=False, expand=None):
+        """ Retrieves a batch of entity rows from an entity repository. """
         possible_options = {'q': q,
                             'attrs': [attributes, expand],
-                            'num': num,
+                            'num': batch_size,
                             'start': start,
                             'sort': [sort_column, sort_order]}
 
@@ -129,10 +168,10 @@ class Session:
         except requests.RequestException as ex:
             self._raise_exception(ex)
 
-        if not raw:
-            return response.json()["items"]
-        else:
+        if raw:
             return response.json()
+        else:
+            return response.json()["items"]
 
     def add(self, entity, data=None, files=None, **kwargs):
         """Adds a single entity row to an entity repository.
@@ -234,7 +273,7 @@ class Session:
             self._raise_exception(ex)
 
         return response.json()
-
+    
     def get_attribute_meta_data(self, entity, attribute):
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
@@ -249,11 +288,10 @@ class Session:
     def upload_zip(self, meta_data_zip):
         """Uploads a given zip with data and metadata"""
         header = self._get_token_header()
-        zip_file = open(os.path.abspath(meta_data_zip), 'rb')
-        files = {'file': zip_file}
-        url = self._url.strip('/api/') + '/plugin/importwizard/importFile'
-        response = requests.post(url, headers=header, files=files)
-        zip_file.close()
+        with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
+            files = {'file': zip_file}
+            url = self._url.strip('/api/') + '/plugin/importwizard/importFile'
+            response = requests.post(url, headers=header, files=files)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:

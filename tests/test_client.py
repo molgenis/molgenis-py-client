@@ -27,6 +27,13 @@ class TestStringMethods(unittest.TestCase):
                                       "permission on entity type 'User' with id 'sys_sec_User'.".format(api_url)
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
+    expected_ref_data = [
+                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref1', 'value': 'ref1', 'label': 'label1'},
+                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref2', 'value': 'ref2', 'label': 'label2'},
+                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref3', 'value': 'ref3', 'label': 'label3'},
+                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref4', 'value': 'ref4', 'label': 'label4'},
+                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref5', 'value': 'ref5', 'label': 'label5'},
+                    ]
     session = molgenis.Session(api_url)
     session.login('admin', password)
 
@@ -67,17 +74,21 @@ class TestStringMethods(unittest.TestCase):
         s.get(self.user_entity)
         s.logout()
         try:
-            s.get(self.user_entity)
+            s._get_batch(self.user_entity)
         except Exception as e:
             message = e.args[0]
+            response = e.args[1]
+            response.connection.close()
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
     def test_no_login_and_get_MolgenisUser(self):
         s = molgenis.Session(self.api_url)
         try:
-            s.get(self.user_entity)
+            s._get_batch(self.user_entity)
         except Exception as e:
             message = e.args[0]
+            response = e.args[1]
+            response.connection.close()
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
     def test_upload_zip(self):
@@ -186,12 +197,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_get(self):
         data = self.session.get(self.ref_entity)
-        expected = [{'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref1', 'value': 'ref1', 'label': 'label1'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref2', 'value': 'ref2', 'label': 'label2'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref3', 'value': 'ref3', 'label': 'label3'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref4', 'value': 'ref4', 'label': 'label4'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref5', 'value': 'ref5', 'label': 'label5'}]
-        self.assertEqual(expected, data)
+        self.assertEqual(self.expected_ref_data, data)
 
     def test_get_raw(self):
         data = self.session.get(self.ref_entity, raw=True)
@@ -207,6 +213,10 @@ class TestStringMethods(unittest.TestCase):
         data = self.session.get(self.ref_entity, num=2)
         self.assertEqual(2, len(data))
 
+    def test_get_batch(self):
+        data = self.session.get(self.ref_entity, batch_size=2)
+        self.assertEqual(self.expected_ref_data, data)
+        
     def test_get_expand(self):
         data = self.session.get(self.ref_entity.replace('Ref', ''), expand='xcomputedxref')
         first_item = data[0]
