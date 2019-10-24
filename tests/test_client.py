@@ -1,4 +1,5 @@
-import unittest, sys, os
+import os
+import unittest
 
 import molgenis.client as molgenis
 
@@ -27,13 +28,14 @@ class TestStringMethods(unittest.TestCase):
                                       "permission on entity type 'User' with id 'sys_sec_User'.".format(api_url)
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
+    entity = 'org_molgenis_test_python_TypeTest'
     expected_ref_data = [
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref1', 'value': 'ref1', 'label': 'label1'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref2', 'value': 'ref2', 'label': 'label2'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref3', 'value': 'ref3', 'label': 'label3'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref4', 'value': 'ref4', 'label': 'label4'},
-                    {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref5', 'value': 'ref5', 'label': 'label5'},
-                    ]
+        {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref1', 'value': 'ref1', 'label': 'label1'},
+        {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref2', 'value': 'ref2', 'label': 'label2'},
+        {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref3', 'value': 'ref3', 'label': 'label3'},
+        {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref4', 'value': 'ref4', 'label': 'label4'},
+        {'_href': '/api/v2/org_molgenis_test_python_TypeTestRef/ref5', 'value': 'ref5', 'label': 'label5'},
+    ]
     session = molgenis.Session(api_url)
     session.login('admin', password)
 
@@ -166,7 +168,7 @@ class TestStringMethods(unittest.TestCase):
             self.session.update_one(self.ref_entity, 'ref55', 'label', 'updated-label55')
         except Exception as e:
             raise Exception(e)
-        item55 = self.session.get_by_id(self.ref_entity, "ref55", ["label"])
+        item55 = self.session.get_by_id(self.ref_entity, "ref55", "label")
         self.assertEqual("updated-label55", item55["label"])
         self.session.delete(self.ref_entity, 'ref55')
 
@@ -216,16 +218,16 @@ class TestStringMethods(unittest.TestCase):
     def test_get_batch(self):
         data = self.session.get(self.ref_entity, batch_size=2)
         self.assertEqual(self.expected_ref_data, data)
-        
+
     def test_get_expand(self):
-        data = self.session.get(self.ref_entity.replace('Ref', ''), expand='xcomputedxref')
+        data = self.session.get(self.entity, expand='xcomputedxref')
         first_item = data[0]
         expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Chromosome": "str1", "Position": 5}
         self.assertEqual(47, len(first_item))
         self.assertEqual(expected, first_item['xcomputedxref'])
 
     def test_get_expand_attrs(self):
-        data = self.session.get(self.ref_entity.replace('Ref', ''), expand='xcomputedxref',
+        data = self.session.get(self.entity, expand='xcomputedxref',
                                 attributes='id,xcomputedxref')
         first_item = data[0]
         expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Chromosome": "str1", "Position": 5}
@@ -244,6 +246,21 @@ class TestStringMethods(unittest.TestCase):
                           'lookupAttribute': True, 'isAggregatable': False,
                           'validationExpression': "$('username').matches(/^[\\S].+[\\S]$/).value()"},
                          meta)
+
+    def test_get_by_id(self):
+        data = self.session.get_by_id(self.ref_entity, 'ref1')
+        del data['_meta']
+        self.assertEqual(self.expected_ref_data[0], data)
+
+    def test_get_by_id_expand(self):
+        data = self.session.get_by_id(self.entity, '1', expand='xcomputedxref')
+        expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Chromosome": "str1", "Position": 5}
+        self.assertEqual(expected, data['xcomputedxref'])
+
+    def test_get_by_id_no_expand(self):
+        data = self.session.get_by_id(self.entity, '1')
+        expected = {"_href": "/api/v2/org_molgenis_test_python_Location/5", "Position": 5}
+        self.assertEqual(expected, data['xcomputedxref'])
 
     def test_build_api_url_complex(self):
         base_url = 'https://test.frl/api/test'
