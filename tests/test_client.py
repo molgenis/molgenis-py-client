@@ -83,6 +83,25 @@ class TestStringMethods(unittest.TestCase):
             response.connection.close()
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
 
+    def test_token_session_and_get_MolgenisUser(self):
+        token = 'token_session_test'
+        admin = self.session.get('sys_sec_User', q='username==admin', attributes='id')
+        self.session.add('sys_sec_Token', data={'User': admin[0]['id'],
+                                                'token': token,
+                                                'creationDate': '2000-01-01T01:01:01'})
+
+        token_session = molgenis.Session(self.api_url, token=token)
+        token_session.get(self.user_entity)
+        token_session.logout()
+
+        try:
+            token_session._get_batch(self.user_entity)
+        except Exception as e:
+            message = e.args[0]
+            response = e.args[1]
+            response.connection.close()
+            self.assertEqual(self.no_readmeta_permission_user_msg, message)
+
     def test_no_login_and_get_MolgenisUser(self):
         s = molgenis.Session(self.api_url)
         try:

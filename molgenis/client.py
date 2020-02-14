@@ -1,5 +1,6 @@
 import json
 import os
+
 import requests
 
 try:
@@ -27,17 +28,18 @@ class Session:
     >>> session.get('Person')
     """
 
-    def __init__(self, url="http://localhost:8080/api/"):
+    def __init__(self, url="http://localhost:8080/api/", token=None):
         """Constructs a new Session.
         Args:
         url -- URL of the REST API. Should be of form 'http[s]://<molgenis server>[:port]/api/'
+        token -- authentication token if you are already logged in
 
         Examples:
         >>> session = Session('http://localhost:8080/api/')
         """
         self._url = url
         self._session = requests.Session()
-        self._token = None
+        self._token = token
 
     def login(self, username, password):
         """Logs in a user and stores the acquired session token in this Session object.
@@ -68,7 +70,7 @@ class Session:
 
         self._token = None
         self._session.cookies.clear()
-        self._session.close
+        self._session.close()
 
     def get_by_id(self, entity, id_, attributes=None, expand=None):
         """Retrieves a single entity row from an entity repository.
@@ -97,7 +99,8 @@ class Session:
         response.close()
         return result
 
-    def get(self, entity, q=None, attributes=None, num=None, batch_size=100, start=0, sort_column=None, sort_order=None, raw=False,
+    def get(self, entity, q=None, attributes=None, num=None, batch_size=100, start=0, sort_column=None, sort_order=None,
+            raw=False,
             expand=None):
         """Retrieves all entity rows from an entity repository.
 
@@ -128,15 +131,15 @@ class Session:
         items = []
         while not num or len(items) < num:  # Keep pulling in batches
             response = self._get_batch(
-                                    entity=entity,
-                                    q=q,
-                                    attributes=attributes,
-                                    batch_size=batch_size,
-                                    start=batch_start,
-                                    sort_column=sort_column,
-                                    sort_order=sort_order,
-                                    raw=True,
-                                    expand=expand)
+                entity=entity,
+                q=q,
+                attributes=attributes,
+                batch_size=batch_size,
+                start=batch_start,
+                sort_column=sort_column,
+                sort_order=sort_order,
+                raw=True,
+                expand=expand)
             if raw:
                 return response  # Simply return the first batch response JSON
             else:
@@ -276,7 +279,7 @@ class Session:
             self._raise_exception(ex)
 
         return response.json()
-    
+
     def get_attribute_meta_data(self, entity, attribute):
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
