@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='molgenis-py-client',
-    version='2.1.1',
+    version='2.2.0',
     description='The Python client for the MOLGENIS REST API',
     url='https://github.com/molgenis/molgenis-py-client/',
     license='GNU Lesser General Public License 3.0',
