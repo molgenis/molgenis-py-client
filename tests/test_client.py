@@ -4,7 +4,7 @@ import unittest
 import molgenis.client as molgenis
 
 
-class RepsonseMock:
+class ResponseMock:
     def __init__(self, content):
         self.content = content
 
@@ -12,7 +12,7 @@ class RepsonseMock:
 class ExceptionMock:
     def __init__(self, message, response):
         self.args = [message]
-        self.response = RepsonseMock(response)
+        self.response = ResponseMock(response)
 
 
 class TestStringMethods(unittest.TestCase):

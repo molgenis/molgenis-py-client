@@ -38,20 +38,18 @@ class Session:
         >>> session = Session('http://localhost:8080/api/')
         """
         self._url = url
-        self._session = requests.Session()
         self._token = token
 
     def login(self, username, password):
-        """Logs in a user and stores the acquired session token in this Session object.
+        """Logs in a user and stores the acquired token in this Session object.
 
         Args:
         username -- username for a registered molgenis user
         password -- password for the user
         """
-        self._session.cookies.clear()
-        response = self._session.post(self._url + "v1/login",
-                                      data=json.dumps({"username": username, "password": password}),
-                                      headers={"Content-Type": "application/json"})
+        response = requests.post(self._url + "v1/login",
+                                 data=json.dumps({"username": username, "password": password}),
+                                 headers={"Content-Type": "application/json"})
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
@@ -60,17 +58,15 @@ class Session:
         self._token = response.json()['token']
 
     def logout(self):
-        """Logs out the current session token."""
-        response = self._session.post(self._url + "v1/logout",
-                                      headers=self._get_token_header())
+        """Logs out the current token."""
+        response = requests.post(self._url + "v1/logout",
+                                 headers=self._get_token_header())
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
             self._raise_exception(ex)
 
         self._token = None
-        self._session.cookies.clear()
-        self._session.close()
 
     def get_by_id(self, entity, id_, attributes=None, expand=None):
         """Retrieves a single entity row from an entity repository.
@@ -88,7 +84,7 @@ class Session:
         possible_options = {'attrs': [attributes, expand]}
 
         url = self._build_api_url(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
-        response = self._session.get(url, headers=self._get_token_header())
+        response = requests.get(url, headers=self._get_token_header())
 
         try:
             response.raise_for_status()
@@ -167,7 +163,7 @@ class Session:
                             'sort': [sort_column, sort_order]}
 
         url = self._build_api_url(self._url + "v2/" + quote_plus(entity), possible_options)
-        response = self._session.get(url, headers=self._get_token_header())
+        response = requests.get(url, headers=self._get_token_header())
 
         try:
             response.raise_for_status()
@@ -206,7 +202,7 @@ class Session:
         if not files:
             files = {}
 
-        response = self._session.post(self._url + "v1/" + quote_plus(entity),
+        response = requests.post(self._url + "v1/" + quote_plus(entity),
                                       headers=self._get_token_header(),
                                       data=self._merge_two_dicts(data, kwargs),
                                       files=files)
@@ -219,7 +215,7 @@ class Session:
 
     def add_all(self, entity, entities):
         """Adds multiple entity rows to an entity repository."""
-        response = self._session.post(self._url + "v2/" + quote_plus(entity),
+        response = requests.post(self._url + "v2/" + quote_plus(entity),
                                       headers=self._get_token_header_with_content_type(),
                                       data=json.dumps({"entities": entities}))
 
@@ -232,7 +228,7 @@ class Session:
 
     def update_one(self, entity, id_, attr, value):
         """Updates one attribute of a given entity in a table with a given value"""
-        response = self._session.put(self._url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
+        response = requests.put(self._url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
                                      headers=self._get_token_header_with_content_type(),
                                      data=json.dumps(value))
 
@@ -249,7 +245,7 @@ class Session:
         if id_:
             url = url + "/" + quote_plus(id_)
 
-        response = self._session.delete(url, headers=self._get_token_header())
+        response = requests.delete(url, headers=self._get_token_header())
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
@@ -259,7 +255,7 @@ class Session:
 
     def delete_list(self, entity, entities):
         """Deletes multiple entity rows to an entity repository, given a list of id's."""
-        response = self._session.delete(self._url + "v2/" + quote_plus(entity),
+        response = requests.delete(self._url + "v2/" + quote_plus(entity),
                                         headers=self._get_token_header_with_content_type(),
                                         data=json.dumps({"entityIds": entities}))
         try:
@@ -271,7 +267,7 @@ class Session:
 
     def get_entity_meta_data(self, entity):
         """Retrieves the metadata for an entity repository."""
-        response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
+        response = requests.get(self._url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
                                      headers=self._get_token_header())
         try:
             response.raise_for_status()
@@ -282,7 +278,7 @@ class Session:
 
     def get_attribute_meta_data(self, entity, attribute):
         """Retrieves the metadata for a single attribute of an entity repository."""
-        response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
+        response = requests.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
                                      headers=self._get_token_header())
         try:
             response.raise_for_status()
