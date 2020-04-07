@@ -105,8 +105,8 @@ class Session:
         entity -- fully qualified name of the entity
         q -- query in rsql format, see our RSQL documentation for details
             (https://molgenis.gitbooks.io/molgenis/content/developer_documentation/ref-RSQL.html)
-        attributes -- The list of attributes to retrieve
-        expand -- the attributes to expand
+        attributes -- The list of attributes to retrieve (as comma-separated string)
+        expand -- the attributes to expand (as comma-separated string)
         num -- the maximum amount of entity rows to retrieve
         batch_size - the amount of entity rows to retrieve per time (max. 10.000)
         start -- the index of the first row to retrieve (zero indexed)
@@ -117,7 +117,8 @@ class Session:
         Examples:
         >>> session = Session('http://localhost:8080/api/')
         >>> session.get('Person')
-        >>> session.get(entity='Person', q='name=="Henk"', attributes=['name', 'age'])
+        >>> session.get(entity='Person', q='name=="Henk"', attributes='name,age'])
+        >>> session.get(entity='Person', expand='mother,father'])
         >>> session.get(entity='Person', sort_column='age', sort_order='desc')
         >>> session.get('Person', raw=True)
         """
