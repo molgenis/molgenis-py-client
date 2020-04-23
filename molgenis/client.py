@@ -4,11 +4,13 @@ import requests
 
 try:
     from urllib.parse import quote_plus, urlparse, parse_qs
+    from http.cookiejar import CookiePolicy
 except ImportError:
     # Python 2
     # noinspection PyUnresolvedReferences
     from urllib import quote_plus
     from urlparse import urlparse, parse_qs
+    from cookiejar import CookiePolicy
 
 
 class MolgenisRequestError(Exception):
@@ -17,6 +19,9 @@ class MolgenisRequestError(Exception):
         if response:
             self.response = response
 
+class BlockAll(CookiePolicy):
+    def set_ok(self, cookie, request):
+        return False
 
 class Session:
     """Representation of a session with the MOLGENIS REST API.
@@ -27,26 +32,27 @@ class Session:
     >>> session.get('Person')
     """
 
-    def __init__(self, url="http://localhost:8080/api/"):
+    def __init__(self, url="http://localhost:8080/api/", token=None):
         """Constructs a new Session.
         Args:
         url -- URL of the REST API. Should be of form 'http[s]://<molgenis server>[:port]/api/'
+        token -- authentication token if you are already logged in
 
         Examples:
         >>> session = Session('http://localhost:8080/api/')
         """
         self._url = url
         self._session = requests.Session()
-        self._token = None
+        self._session.cookies.policy = BlockAll()
+        self._token = token
 
     def login(self, username, password):
-        """Logs in a user and stores the acquired session token in this Session object.
+        """Logs in a user and stores the acquired token in this Session object.
 
         Args:
         username -- username for a registered molgenis user
         password -- password for the user
         """
-        self._session.cookies.clear()
         response = self._session.post(self._url + "v1/login",
                                       data=json.dumps({"username": username, "password": password}),
                                       headers={"Content-Type": "application/json"})
@@ -58,7 +64,7 @@ class Session:
         self._token = response.json()['token']
 
     def logout(self):
-        """Logs out the current session token."""
+        """Logs out the current token."""
         response = self._session.post(self._url + "v1/logout",
                                       headers=self._get_token_header())
         try:
@@ -67,8 +73,6 @@ class Session:
             self._raise_exception(ex)
 
         self._token = None
-        self._session.cookies.clear()
-        self._session.close
 
     def get_by_id(self, entity, id_, attributes=None, expand=None):
         """Retrieves a single entity row from an entity repository.
