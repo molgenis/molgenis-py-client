@@ -4,7 +4,7 @@ import unittest
 import molgenis.client as molgenis
 
 
-class RepsonseMock:
+class ResponseMock:
     def __init__(self, content):
         self.content = content
 
@@ -12,7 +12,7 @@ class RepsonseMock:
 class ExceptionMock:
     def __init__(self, message, response):
         self.args = [message]
-        self.response = RepsonseMock(response)
+        self.response = ResponseMock(response)
 
 
 class TestStringMethods(unittest.TestCase):
@@ -77,6 +77,25 @@ class TestStringMethods(unittest.TestCase):
         s.logout()
         try:
             s._get_batch(self.user_entity)
+        except Exception as e:
+            message = e.args[0]
+            response = e.args[1]
+            response.connection.close()
+            self.assertEqual(self.no_readmeta_permission_user_msg, message)
+
+    def test_token_session_and_get_MolgenisUser(self):
+        token = 'token_session_test'
+        admin = self.session.get('sys_sec_User', q='username==admin', attributes='id')
+        self.session.add('sys_sec_Token', data={'User': admin[0]['id'],
+                                                'token': token,
+                                                'creationDate': '2000-01-01T01:01:01'})
+
+        token_session = molgenis.Session(self.api_url, token=token)
+        token_session.get(self.user_entity)
+        token_session.logout()
+
+        try:
+            token_session._get_batch(self.user_entity)
         except Exception as e:
             message = e.args[0]
             response = e.args[1]
