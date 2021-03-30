@@ -1,5 +1,6 @@
 import json
 import os
+
 import requests
 
 try:
@@ -19,9 +20,14 @@ class MolgenisRequestError(Exception):
         if response:
             self.response = response
 
+
 class BlockAll(CookiePolicy):
+    def return_ok(self, cookie, request):
+        pass
+
     def set_ok(self, cookie, request):
         return False
+
 
 class Session:
     """Representation of a session with the MOLGENIS REST API.
@@ -101,7 +107,8 @@ class Session:
         response.close()
         return result
 
-    def get(self, entity, q=None, attributes=None, num=None, batch_size=100, start=0, sort_column=None, sort_order=None, raw=False,
+    def get(self, entity, q=None, attributes=None, num=None, batch_size=100, start=0, sort_column=None, sort_order=None,
+            raw=False,
             expand=None):
         """Retrieves all entity rows from an entity repository.
 
@@ -133,15 +140,15 @@ class Session:
         items = []
         while not num or len(items) < num:  # Keep pulling in batches
             response = self._get_batch(
-                                    entity=entity,
-                                    q=q,
-                                    attributes=attributes,
-                                    batch_size=batch_size,
-                                    start=batch_start,
-                                    sort_column=sort_column,
-                                    sort_order=sort_order,
-                                    raw=True,
-                                    expand=expand)
+                entity=entity,
+                q=q,
+                attributes=attributes,
+                batch_size=batch_size,
+                start=batch_start,
+                sort_column=sort_column,
+                sort_order=sort_order,
+                raw=True,
+                expand=expand)
             if raw:
                 return response  # Simply return the first batch response JSON
             else:
@@ -281,7 +288,7 @@ class Session:
             self._raise_exception(ex)
 
         return response.json()
-    
+
     def get_attribute_meta_data(self, entity, attribute):
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
