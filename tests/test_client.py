@@ -24,8 +24,6 @@ class TestStringMethods(unittest.TestCase):
     password = os.getenv('CI_PASSWORD', 'admin')
     api_url = host + "/api/"
 
-    no_readmeta_permission_user_msg = "401 Client Error:  for url: {}v2/sys_sec_User: No 'Read metadata' " \
-                                      "permission on entity type 'User' with id 'sys_sec_User'.".format(api_url)
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
     entity = 'org_molgenis_test_python_TypeTest'
@@ -78,10 +76,9 @@ class TestStringMethods(unittest.TestCase):
         try:
             s._get_batch(self.user_entity)
         except Exception as e:
-            message = e.args[0]
             response = e.args[1]
             response.connection.close()
-            self.assertEqual(self.no_readmeta_permission_user_msg, message)
+            assert response.status_code == 401
 
     def test_token_session_and_get_MolgenisUser(self):
         token = 'token_session_test'
@@ -97,20 +94,18 @@ class TestStringMethods(unittest.TestCase):
         try:
             token_session._get_batch(self.user_entity)
         except Exception as e:
-            message = e.args[0]
             response = e.args[1]
             response.connection.close()
-            self.assertEqual(self.no_readmeta_permission_user_msg, message)
+            assert response.status_code == 401
 
     def test_no_login_and_get_MolgenisUser(self):
         s = molgenis.Session(self.api_url)
         try:
             s._get_batch(self.user_entity)
         except Exception as e:
-            message = e.args[0]
             response = e.args[1]
             response.connection.close()
-            self.assertEqual(self.no_readmeta_permission_user_msg, message)
+            assert response.status_code == 401
 
     def test_upload_zip(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
