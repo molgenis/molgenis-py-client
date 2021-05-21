@@ -33,24 +33,32 @@ class Session:
     """Representation of a session with the MOLGENIS REST API.
     Usage:
 
-    >>> session = Session('http://localhost:8080/api/')
+    >>> session = Session('http://localhost:8080/')
     >>> session.login('user', 'password')
     >>> session.get('Person')
     """
 
-    def __init__(self, url="http://localhost:8080/api/", token=None):
+    def __init__(self, url="http://localhost:8080/", token=None):
         """Constructs a new Session.
         Args:
-        url -- URL of the REST API. Should be of form 'http[s]://<molgenis server>[:port]/api/'
+        url -- URL of the REST API. Should be of form 'http[s]://<molgenis server>[:port]/'
         token -- authentication token if you are already logged in
 
         Examples:
-        >>> session = Session('http://localhost:8080/api/')
+        >>> session = Session('http://localhost:8080/')
         """
-        self._url = url
+        self._set_urls(url)
         self._session = requests.Session()
         self._session.cookies.policy = BlockAll()
         self._token = token
+
+    def _set_urls(self, url):
+        """ Sets the root and API URLs.
+        Historically, the URL had to be passed with '/api' at the end. This method is for backwards compatibility and
+        allows for URLs both with and without the '/api' postfix.
+        """
+        self._root_url = url.rstrip('/').rstrip('/api') + '/'
+        self._api_url = self._root_url + 'api/'
 
     def login(self, username, password):
         """Logs in a user and stores the acquired token in this Session object.
@@ -59,7 +67,7 @@ class Session:
         username -- username for a registered molgenis user
         password -- password for the user
         """
-        response = self._session.post(self._url + "v1/login",
+        response = self._session.post(self._api_url + "v1/login",
                                       data=json.dumps({"username": username, "password": password}),
                                       headers={"Content-Type": "application/json"})
         try:
@@ -71,7 +79,7 @@ class Session:
 
     def logout(self):
         """Logs out the current token."""
-        response = self._session.post(self._url + "v1/logout",
+        response = self._session.post(self._api_url + "v1/logout",
                                       headers=self._get_token_header())
         try:
             response.raise_for_status()
@@ -95,7 +103,7 @@ class Session:
         """
         possible_options = {'attrs': [attributes, expand]}
 
-        url = self._build_api_url(self._url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
+        url = self._build_api_url(self._api_url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
         response = self._session.get(url, headers=self._get_token_header())
 
         try:
@@ -175,7 +183,7 @@ class Session:
                             'start': start,
                             'sort': [sort_column, sort_order]}
 
-        url = self._build_api_url(self._url + "v2/" + quote_plus(entity), possible_options)
+        url = self._build_api_url(self._api_url + "v2/" + quote_plus(entity), possible_options)
         response = self._session.get(url, headers=self._get_token_header())
 
         try:
@@ -215,7 +223,7 @@ class Session:
         if not files:
             files = {}
 
-        response = self._session.post(self._url + "v1/" + quote_plus(entity),
+        response = self._session.post(self._api_url + "v1/" + quote_plus(entity),
                                       headers=self._get_token_header(),
                                       data=self._merge_two_dicts(data, kwargs),
                                       files=files)
@@ -228,7 +236,7 @@ class Session:
 
     def add_all(self, entity, entities):
         """Adds multiple entity rows to an entity repository."""
-        response = self._session.post(self._url + "v2/" + quote_plus(entity),
+        response = self._session.post(self._api_url + "v2/" + quote_plus(entity),
                                       headers=self._get_token_header_with_content_type(),
                                       data=json.dumps({"entities": entities}))
 
@@ -241,7 +249,7 @@ class Session:
 
     def update_one(self, entity, id_, attr, value):
         """Updates one attribute of a given entity in a table with a given value"""
-        response = self._session.put(self._url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
+        response = self._session.put(self._api_url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
                                      headers=self._get_token_header_with_content_type(),
                                      data=json.dumps(value))
 
@@ -254,7 +262,7 @@ class Session:
 
     def delete(self, entity, id_=None):
         """Deletes a single entity row or all rows (if id_ not specified) from an entity repository."""
-        url = self._url + "v1/" + quote_plus(entity)
+        url = self._api_url + "v1/" + quote_plus(entity)
         if id_:
             url = url + "/" + quote_plus(id_)
 
@@ -268,7 +276,7 @@ class Session:
 
     def delete_list(self, entity, entities):
         """Deletes multiple entity rows to an entity repository, given a list of id's."""
-        response = self._session.delete(self._url + "v2/" + quote_plus(entity),
+        response = self._session.delete(self._api_url + "v2/" + quote_plus(entity),
                                         headers=self._get_token_header_with_content_type(),
                                         data=json.dumps({"entityIds": entities}))
         try:
@@ -280,7 +288,7 @@ class Session:
 
     def get_entity_meta_data(self, entity):
         """Retrieves the metadata for an entity repository."""
-        response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
+        response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
                                      headers=self._get_token_header())
         try:
             response.raise_for_status()
@@ -291,7 +299,7 @@ class Session:
 
     def get_attribute_meta_data(self, entity, attribute):
         """Retrieves the metadata for a single attribute of an entity repository."""
-        response = self._session.get(self._url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
+        response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
                                      headers=self._get_token_header())
         try:
             response.raise_for_status()
@@ -305,7 +313,7 @@ class Session:
         header = self._get_token_header()
         with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
             files = {'file': zip_file}
-            url = self._url.strip('/api/') + '/plugin/importwizard/importFile'
+            url = self._root_url + 'plugin/importwizard/importFile'
             response = requests.post(url, headers=header, files=files)
         try:
             response.raise_for_status()

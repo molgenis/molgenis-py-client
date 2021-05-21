@@ -47,7 +47,7 @@ class TestStringMethods(unittest.TestCase):
             print(e)
 
     def _try_add(self, entity_type, entities):
-        # Try to add because if a previous test failed, possibly the refs you're about to reove are not added yet
+        # Try to add because if a previous test failed, possibly the refs you're about to remove are not added yet
         try:
             self.session.add_all(entity_type, entities)
         except Exception as e:
@@ -111,6 +111,38 @@ class TestStringMethods(unittest.TestCase):
             response = e.args[1]
             response.connection.close()
             self.assertEqual(self.no_readmeta_permission_user_msg, message)
+
+    def test_session_url_with_api_slash(self):
+        url = 'root/api/'
+
+        session = molgenis.Session(url)
+
+        assert session._root_url == 'root/'
+        assert session._api_url == 'root/api/'
+
+    def test_session_url_with_api(self):
+        url = 'root/api'
+
+        session = molgenis.Session(url)
+
+        assert session._root_url == 'root/'
+        assert session._api_url == 'root/api/'
+
+    def test_session_url_slash(self):
+        url = 'root/'
+
+        session = molgenis.Session(url)
+
+        assert session._root_url == 'root/'
+        assert session._api_url == 'root/api/'
+
+    def test_session_url(self):
+        url = 'root'
+
+        session = molgenis.Session(url)
+
+        assert session._root_url == 'root/'
+        assert session._api_url == 'root/api/'
 
     def test_upload_zip(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
