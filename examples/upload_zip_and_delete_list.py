@@ -1,6 +1,6 @@
 import molgenis.client as molgenis
 
-session = molgenis.Session("http://localhost:8080/api/")
+session = molgenis.Session("http://localhost:8080/")
 session.login('admin', 'admin')
 
 response = session.upload_zip("resources/upload.zip").split('/')
