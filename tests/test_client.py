@@ -22,7 +22,7 @@ class TestStringMethods(unittest.TestCase):
 
     host = os.getenv('CI_HOST', 'http://localhost:8080')
     password = os.getenv('CI_PASSWORD', 'admin')
-    api_url = host + "/api/"
+    api_url = host
 
     user_entity = 'sys_sec_User'
     ref_entity = 'org_molgenis_test_python_TypeTestRef'
@@ -187,7 +187,7 @@ class TestStringMethods(unittest.TestCase):
             self.session.add_all(self.ref_entity, [{"value": "ref55"}])
         except Exception as e:
             message = e.args[0]
-            expected = "400 Client Error:  for url: {}v2/org_molgenis_test_python_TypeTest" \
+            expected = "400 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTest" \
                        "Ref: The attribute 'label' of entity 'org_molgenis_test_python_TypeTestRef' can not be null.".format(
                 self.api_url)
             self.assertEqual(expected, message)
@@ -223,7 +223,7 @@ class TestStringMethods(unittest.TestCase):
             self.session.update_one(self.ref_entity, 'ref555', 'label', 'updated-label555')
         except Exception as e:
             message = e.args[0]
-            expected = "404 Client Error:  for url: {}v1/org_molgenis_test_python_TypeTestRef" \
+            expected = "404 Client Error:  for url: {}/api/v1/org_molgenis_test_python_TypeTestRef" \
                        "/ref555/label: Unknown entity with 'value' 'ref555' of type 'TypeTestRef'.".format(self.api_url)
             self.assertEqual(expected, message)
 
