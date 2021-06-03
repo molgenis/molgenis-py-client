@@ -1,17 +1,10 @@
 import json
 import os
+from http.cookiejar import CookiePolicy
+from typing import List, Union, Any, Optional
+from urllib.parse import quote_plus, urlparse, parse_qs
 
 import requests
-
-try:
-    from urllib.parse import quote_plus, urlparse, parse_qs
-    from http.cookiejar import CookiePolicy
-except ImportError:
-    # Python 2
-    # noinspection PyUnresolvedReferences
-    from urllib import quote_plus
-    from urlparse import urlparse, parse_qs
-    from cookiejar import CookiePolicy
 
 
 class MolgenisRequestError(Exception):
@@ -38,7 +31,7 @@ class Session:
     >>> session.get('Person')
     """
 
-    def __init__(self, url="http://localhost:8080/", token=None):
+    def __init__(self, url: str = "http://localhost:8080/", token: str = None):
         """Constructs a new Session.
         Args:
         url -- URL of the REST API. Should be of form 'http[s]://<molgenis server>[:port]/'
@@ -52,7 +45,7 @@ class Session:
         self._session.cookies.policy = BlockAll()
         self._token = token
 
-    def _set_urls(self, url):
+    def _set_urls(self, url: str):
         """ Sets the root and API URLs.
         Historically, the URL had to be passed with '/api' at the end. This method is for backwards compatibility and
         allows for URLs both with and without the '/api' postfix.
@@ -60,7 +53,7 @@ class Session:
         self._root_url = url.rstrip('/').rstrip('/api') + '/'
         self._api_url = self._root_url + 'api/'
 
-    def login(self, username, password):
+    def login(self, username: str, password: str):
         """Logs in a user and stores the acquired token in this Session object.
 
         Args:
@@ -88,13 +81,13 @@ class Session:
 
         self._token = None
 
-    def get_by_id(self, entity, id_, attributes=None, expand=None):
+    def get_by_id(self, entity: str, id_: str, attributes: str = None, expand: str = None) -> dict:
         """Retrieves a single entity row from an entity repository.
 
         Args:
         entity -- fully qualified name of the entity
         id_ -- the value for the idAttribute of the entity
-        attributes -- The list of attributes to retrieve
+        attributes -- The list of attributes to retrieve (comma separated)
         expand -- the attributes to expand, string with commas to separate multiple attributes.
 
         Examples:
@@ -115,9 +108,17 @@ class Session:
         response.close()
         return result
 
-    def get(self, entity, q=None, attributes=None, num=None, batch_size=100, start=0, sort_column=None, sort_order=None,
-            raw=False,
-            expand=None):
+    def get(self,
+            entity: str,
+            q: str = None,
+            attributes: str = None,
+            num: int = None,
+            batch_size: int = 100,
+            start: int = 0,
+            sort_column: str = None,
+            sort_order: str = None,
+            raw: bool = False,
+            expand: str = None) -> Union[List[dict], dict]:
         """Retrieves all entity rows from an entity repository.
 
         Args:
@@ -174,8 +175,16 @@ class Session:
 
         return items
 
-    def _get_batch(self, entity, q=None, attributes=None, batch_size=100, start=0, sort_column=None, sort_order=None,
-                   raw=False, expand=None):
+    def _get_batch(self,
+                   entity: str,
+                   q: str = None,
+                   attributes: str = None,
+                   batch_size: int = 100,
+                   start: int = 0,
+                   sort_column: str = None,
+                   sort_order: str = None,
+                   raw: bool = False,
+                   expand: str = None) -> Union[List[dict], dict]:
         """ Retrieves a batch of entity rows from an entity repository. """
         possible_options = {'q': q,
                             'attrs': [attributes, expand],
@@ -196,7 +205,7 @@ class Session:
         else:
             return response.json()["items"]
 
-    def add(self, entity, data=None, files=None, **kwargs):
+    def add(self, entity: str, data: dict = None, files: dict = None, **kwargs) -> str:
         """Adds a single entity row to an entity repository.
 
         Args:
@@ -234,7 +243,7 @@ class Session:
 
         return response.headers["Location"].split("/")[-1]
 
-    def add_all(self, entity, entities):
+    def add_all(self, entity: str, entities: List[dict]) -> List[str]:
         """Adds multiple entity rows to an entity repository."""
         response = self._session.post(self._api_url + "v2/" + quote_plus(entity),
                                       headers=self._get_token_header_with_content_type(),
@@ -247,7 +256,7 @@ class Session:
 
         return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
 
-    def update_one(self, entity, id_, attr, value):
+    def update_one(self, entity: str, id_: str, attr: str, value: Any) -> requests.Response:
         """Updates one attribute of a given entity in a table with a given value"""
         response = self._session.put(self._api_url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
                                      headers=self._get_token_header_with_content_type(),
@@ -260,7 +269,7 @@ class Session:
 
         return response
 
-    def delete(self, entity, id_=None):
+    def delete(self, entity: str, id_: str = None) -> requests.Response:
         """Deletes a single entity row or all rows (if id_ not specified) from an entity repository."""
         url = self._api_url + "v1/" + quote_plus(entity)
         if id_:
@@ -274,7 +283,7 @@ class Session:
 
         return response
 
-    def delete_list(self, entity, entities):
+    def delete_list(self, entity: str, entities: List[str]) -> requests.Response:
         """Deletes multiple entity rows to an entity repository, given a list of id's."""
         response = self._session.delete(self._api_url + "v2/" + quote_plus(entity),
                                         headers=self._get_token_header_with_content_type(),
@@ -286,7 +295,7 @@ class Session:
 
         return response
 
-    def get_entity_meta_data(self, entity):
+    def get_entity_meta_data(self, entity: str) -> dict:
         """Retrieves the metadata for an entity repository."""
         response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
                                      headers=self._get_token_header())
@@ -297,7 +306,7 @@ class Session:
 
         return response.json()
 
-    def get_attribute_meta_data(self, entity, attribute):
+    def get_attribute_meta_data(self, entity: str, attribute: str) -> dict:
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
                                      headers=self._get_token_header())
@@ -308,7 +317,7 @@ class Session:
 
         return response.json()
 
-    def upload_zip(self, meta_data_zip):
+    def upload_zip(self, meta_data_zip: str) -> str:
         """Uploads a given zip with data and metadata"""
         header = self._get_token_header()
         with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
@@ -322,21 +331,21 @@ class Session:
 
         return response.content.decode("utf-8")
 
-    def _get_token_header(self):
+    def _get_token_header(self) -> dict:
         """Creates an 'x-molgenis-token' header for the current session."""
         try:
             return {"x-molgenis-token": self._token}
         except AttributeError:
             return {}
 
-    def _get_token_header_with_content_type(self):
+    def _get_token_header_with_content_type(self) -> dict:
         """Creates an 'x-molgenis-token' header for the current session and a 'Content-Type: application/json' header"""
         headers = self._get_token_header()
         headers.update({"Content-Type": "application/json"})
         return headers
 
     @staticmethod
-    def _process_query(option_value, option):
+    def _process_query(option_value, option: str) -> str:
         """Add query to operators and raise exception when query value is invalid"""
         if type(option_value) == list:
             raise TypeError('Please specify your query in the RSQL format.')
@@ -344,7 +353,7 @@ class Session:
             return '{}={}'.format(option, option_value)
 
     @staticmethod
-    def _process_sort(option_value):
+    def _process_sort(option_value: List[str]) -> str:
         """Converts the sort and sort order to a sort attribute compatible with the REST API v2"""
         if option_value[0] and not option_value[1]:
             return 'sort=' + option_value[0]
@@ -352,18 +361,11 @@ class Session:
             return 'sort={}:{}'.format(option_value[0], option_value[1])
 
     @staticmethod
-    def _split_if_not_none(operator):
+    def _split_if_not_none(operator: Optional[str]) -> List[str]:
         """Returns empty list if operator is None, else splits the operator string by comma to return a list"""
         return operator.split(',') if operator else []
 
-    @staticmethod
-    def _update_operators_if_operator_exists(operators, operator):
-        """Append operator to operators if the operator exists. Returns the new operators"""
-        if operator:
-            operators.append(operator)
-        return operators
-
-    def _merge_attrs(self, attr_expands):
+    def _merge_attrs(self, attr_expands: List[Optional[str]]) -> str:
         """Converts the attrs and expands to an attr attribute compatible with the REST API v2"""
         # Make a list of attrs and expands
         attrs = self._split_if_not_none(attr_expands[0])
@@ -379,23 +381,24 @@ class Session:
         if attrs_operator:
             return 'attrs={}'.format(','.join(attrs_operator))
 
-    def _build_api_url(self, base_url, possible_options):
+    def _build_api_url(self, base_url: str, possible_options: dict):
         """This function builds the api url for the get request, converting the api v1 compliant operators to v2
         operators to enable backwards compatibility of the python api when switching to api v2"""
         operators = []
-        for option in possible_options:
-            option_value = possible_options[option]
+        for option, option_value in possible_options.items():
+            operator = None
             if option == 'q' and option_value:
-                q = self._process_query(option_value, option)
-                operators = self._update_operators_if_operator_exists(operators, q)
+                operator = self._process_query(option_value, option)
             elif option == 'sort':
-                sort = self._process_sort(option_value)
-                operators = self._update_operators_if_operator_exists(operators, sort)
+                operator = self._process_sort(option_value)
             elif option == 'attrs':
-                attrs = self._merge_attrs(option_value)
-                operators = self._update_operators_if_operator_exists(operators, attrs)
+                operator = self._merge_attrs(option_value)
             elif option_value and not (option == 'num' and option_value == 100):
-                operators.append('{}={}'.format(option, option_value))
+                operator = '{}={}'.format(option, option_value)
+
+            if operator:
+                operators.append(operator)
+
         url = '{}?{}'.format(base_url, '&'.join(operators))
 
         if url == base_url + '?':
@@ -404,7 +407,7 @@ class Session:
             return url
 
     @staticmethod
-    def _merge_two_dicts(x, y):
+    def _merge_two_dicts(x: dict, y: dict) -> dict:
         """Given two dicts, merge them into a new dict as a shallow copy."""
         z = x.copy()
         z.update(y)
