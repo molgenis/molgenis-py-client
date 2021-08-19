@@ -3,7 +3,7 @@ import molgenis.client as molgenis
 session = molgenis.Session("http://localhost:8080/")
 session.login('admin', 'admin')
 
-response = session.upload_zip("resources/upload.zip").split('/')
+response = session.upload_zip("../tests/resources/all_datatypes.zip").split('/')
 runEntityType = response[-2]
 runId = response[-1]
 statusInfo = session.get_by_id(runEntityType, runId)

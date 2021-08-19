@@ -62,6 +62,8 @@ class TestStringMethods(unittest.TestCase):
         status_info = cls.session.get_by_id(run_entity_type, run_id)
         while status_info['status'] == 'RUNNING':
             status_info = cls.session.get_by_id(run_entity_type, run_id)
+        if status_info['status'] == 'FAILED':
+            raise Exception(f"Importing test data failed: {status_info['message']}", )
 
     @classmethod
     def tearDownClass(cls):
@@ -290,7 +292,7 @@ class TestStringMethods(unittest.TestCase):
                           'label': 'Username', 'attributes': [], 'enumOptions': [], 'maxLength': 255, 'auto': False,
                           'nillable': False, 'readOnly': True, 'labelAttribute': True, 'unique': True, 'visible': True,
                           'lookupAttribute': True, 'isAggregatable': False,
-                          'validationExpression': "$('username').matches(/^[\\S].+[\\S]$/).value()"},
+                          'validationExpression': "regex('^\\\\S.+\\\\S$', {username})"},
                          meta)
 
     def test_get_by_id(self):
