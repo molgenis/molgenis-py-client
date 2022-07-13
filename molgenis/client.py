@@ -1,5 +1,6 @@
 import copy
 import csv
+from enum import Enum
 import json
 import os
 import tempfile
@@ -26,6 +27,23 @@ class BlockAll(CookiePolicy):
 
     def set_ok(self, cookie, request):
         return False
+
+class ImportDataAction(Enum):
+    """Enum of MOLGENIS import actions"""
+
+    ADD = "add"
+    ADD_UPDATE_EXISTING = "add_update_existing"
+    UPDATE = "update"
+    ADD_IGNORE_EXISTING = "add_ignore_existing"
+
+
+class ImportMetadataAction(Enum):
+    """Enum of MOLGENIS import metadata actions"""
+
+    ADD = "add"
+    UPDATE = "update"
+    UPSERT = "upsert"
+    IGNORE = "ignore"
 
 
 class Session:
@@ -87,7 +105,7 @@ class Session:
 
         self._token = None
 
-    def get_by_id(self, entity: str, id_: str, attributes: str = None, expand: str = None) -> dict:
+    def get_by_id(self, entity: str, id_: str, attributes: str = None, expand: str = None, uploadable: bool = False) -> dict:
         """Retrieves a single entity row from an entity repository.
 
         Args:
@@ -95,6 +113,7 @@ class Session:
         id_ -- the value for the idAttribute of the entity
         attributes -- The list of attributes to retrieve (comma separated)
         expand -- the attributes to expand, string with commas to separate multiple attributes.
+        uploadable -- when true the output of the REST Client will be changed such that it can be uploaded again
 
         Examples:
         >>> session = Session('http://localhost:8080/api/')
@@ -112,6 +131,10 @@ class Session:
 
         result = response.json()
         response.close()
+
+        if uploadable:
+            result = self.to_upload_format(entity, [result])[0]
+
         return result
 
     def get(self,
@@ -140,6 +163,7 @@ class Session:
         sortColumn -- the attribute to sort on
         sortOrder -- the order to sort in
         raw -- when true, the complete REST response will be returned, rather than the data items alone
+        uploadable -- when true the output of the REST Client will be changed such that it can be uploaded again
 
         Examples:
         >>> session = Session('http://localhost:8080/api/')
@@ -296,7 +320,7 @@ class Session:
 
     def upsert(self, entity_type_id: str, entities: List[dict]):
         """
-        Upserts entities in an entity type (in batches, if needed).
+        Upserts entities in an entity type.
         @param entity_type_id: the id of the entity type to upsert to
         @param entities: the entities to upsert
         """
@@ -318,7 +342,7 @@ class Session:
         # Sanitize data: rows that are added should not contain one_to_manys
         add = self._remove_one_to_manys(add, meta)
 
-        # Do the adds and updates in batches
+        # Do the adds and updates separately
         self.add_all(entity_type_id, add)
         self.update_all(entity_type_id, update)
 
@@ -408,7 +432,8 @@ class Session:
         if expand:
             for item in meta["attributes"]["items"]:
                 if "refEntityType" in item["data"]:
-                    ref_entity = item["data"]["refEntityType"]["self"][item["data"]["refEntityType"]["self"].rindex("/"):].replace("/", "")
+                    ref_url = item["data"]["refEntityType"]["self"]
+                    ref_entity = ref_url[ref_url.rindex("/"):].replace("/", "")
                     item["data"]["refEntityType"] = self.get_meta(ref_entity, abstract=True)
 
         return meta
@@ -425,16 +450,10 @@ class Session:
         # Get the idAttributes of the refEntities
         for attr in meta["attributes"]["items"]:
             if "refEntityType" in attr["data"]:
-                ref_id_attr = [ref_attr for ref_attr in
-                               attr["data"]["refEntityType"]["attributes"]["items"] if
-                               ref_attr["data"]['idAttribute']]
-                if len(ref_id_attr) == 1:
-                    ref_id_attr = ref_id_attr[0]["data"]["name"]
-                elif len(ref_id_attr) > 1:
-                    raise MolgenisRequestError(f"More than one ref ID attribute for refEntity{attr['data']['refEntityType']}")
-                else:
-                    raise MolgenisRequestError(f"No ref ID attribute found for refEntity{attr['data']['refEntityType']}")
-                ref_ids[attr["data"]["name"]] = ref_id_attr
+                for ref_attr in attr["data"]["refEntityType"]["attributes"]["items"]:
+                    if ref_attr["data"]["idAttribute"] is True:
+                        ref_ids[attr["data"]["name"]] = ref_attr["data"]["name"]
+
         for row in rows:
             # Remove non-data fields
             row.pop("_href", None)
@@ -455,17 +474,17 @@ class Session:
 
     def upload_zip(self,
                    meta_data_zip: str,
-                   data_action: str = "ADD",
-                   metadata_action: str = "UPSERT",
-                   await_import: bool = False) -> str:
+                   data_action: ImportDataAction = ImportDataAction.ADD,
+                   metadata_action: ImportMetadataAction = ImportMetadataAction.UPSERT,
+                   async: bool = True) -> str:
         """Uploads a given zip with data and/or metadata
-        If await_import is True it waits till the upload is finished.
+        If async is True it does not wait till the upload is finished.
         Options for metadata_action are: [ADD, UPDATE, UPSERT, IGNORE]
         Options for data_action are: [ADD, ADD_UPDATE_EXISTING, UPDATE, ADD_IGNORE_EXISTING]
         """
 
         header = self._get_token_header()
-        params = {"action": data_action, "metadataAction": metadata_action}
+        params = {"action": data_action.value, "metadataAction": metadata_action.value}
         with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
             files = {'file': zip_file}
             url = self._root_url + 'plugin/importwizard/importFile'
@@ -475,22 +494,21 @@ class Session:
         except requests.RequestException as ex:
             self._raise_exception(ex)
 
-        if await_import:
+        if not async:
             self._await_import_job(response.text.split("/")[-1])
 
         return response.content.decode("utf-8")
 
-    def import_data(self, data: dict, data_action, metadata_action):
+    def import_data(self, data: dict, data_action: ImportDataAction, metadata_action: ImportMetadataAction):
         with tempfile.TemporaryDirectory() as tmpdir:
             archive = self._create_emx_archive(data, tmpdir)
             self.upload_zip(
                 archive,
                 data_action,
                 metadata_action,
-                await_import=True
+                async=False
             )
 
-  #  @classmethod
     def _create_emx_archive(self, data: dict, directory: str) -> Path:
         archive_name = f"{directory}/archive.zip"
         with ZipFile(archive_name, "w") as archive:

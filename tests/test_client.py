@@ -155,7 +155,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_upload_zip_await(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./tests/resources/sightings_test.zip', await_import=True).split('/')
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip', async=False).split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = self.session.get_by_id(run_entity_type, run_id)
@@ -163,8 +163,8 @@ class TestStringMethods(unittest.TestCase):
 
     def test_upload_zip_param(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./tests/resources/sightings_test.zip', await_import=True,
-                                           data_action="ADD_UPDATE_EXISTING", metadata_action="ADD").split('/')
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip', async=False,
+                                           data_action=molgenis.ImportDataAction.ADD_UPDATE_EXISTING, metadata_action=molgenis.ImportMetadataAction.ADD).split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = self.session.get_by_id(run_entity_type, run_id)
@@ -182,7 +182,7 @@ class TestStringMethods(unittest.TestCase):
         data={}
         data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66"}]
         try:
-            self.session.import_data(data, "ADD_UPDATE_EXISTING", "IGNORE")
+            self.session.import_data(data, molgenis.ImportDataAction.ADD_UPDATE_EXISTING, molgenis.ImportMetadataAction.IGNORE)
         except Exception as e:
             raise Exception(e)
         item55 = self.session.get_by_id(self.ref_entity, "ref55", "label")
@@ -397,14 +397,14 @@ class TestStringMethods(unittest.TestCase):
             attr.append(item["data"]["label"])
         self.assertEqual(expected, attr)
 
-    #TODO
-#    def test_to_upload_format(self):
-
-
     def test_get_by_id(self):
         data = self.session.get_by_id(self.ref_entity, 'ref1')
         del data['_meta']
         self.assertEqual(self.expected_ref_data[0], data)
+
+    def test_get_by_id_uploadable(self):
+        data = self.session.get_by_id(self.ref_entity, 'ref1', uploadable=True)
+        self.assertEqual({'label': 'label1', 'value': 'ref1'}, data)
 
     def test_get_by_id_expand(self):
         data = self.session.get_by_id(self.entity, '1', expand='xcomputedxref')
