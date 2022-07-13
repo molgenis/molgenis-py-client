@@ -153,7 +153,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_upload_zip_await(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./tests/resources/sightings_test.zip', async=False).split('/')
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip', asynchronous=False).split('/')
         run_entity_type = response[-2]
         run_id = response[-1]
         status_info = self.session.get_by_id(run_entity_type, run_id)
@@ -161,7 +161,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_upload_zip_param(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./tests/resources/sightings_test.zip', async=False,
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip', asynchronous=False,
                                            data_action=molgenis.ImportDataAction.ADD_UPDATE_EXISTING, metadata_action=molgenis.ImportMetadataAction.ADD).split('/')
         run_entity_type = response[-2]
         run_id = response[-1]

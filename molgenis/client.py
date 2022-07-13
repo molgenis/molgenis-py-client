@@ -476,9 +476,9 @@ class Session:
                    meta_data_zip: str,
                    data_action: ImportDataAction = ImportDataAction.ADD,
                    metadata_action: ImportMetadataAction = ImportMetadataAction.UPSERT,
-                   async: bool = True) -> str:
+                   asynchronous: bool = True) -> str:
         """Uploads a given zip with data and/or metadata
-        If async is True it does not wait till the upload is finished.
+        If asynchronous is True it does not wait till the upload is finished.
         Options for metadata_action are: [ADD, UPDATE, UPSERT, IGNORE]
         Options for data_action are: [ADD, ADD_UPDATE_EXISTING, UPDATE, ADD_IGNORE_EXISTING]
         """
@@ -494,7 +494,7 @@ class Session:
         except requests.RequestException as ex:
             self._raise_exception(ex)
 
-        if not async:
+        if not asynchronous:
             self._await_import_job(response.text.split("/")[-1])
 
         return response.content.decode("utf-8")
@@ -506,7 +506,7 @@ class Session:
                 archive,
                 data_action,
                 metadata_action,
-                async=False
+                asynchronous=False
             )
 
     def _create_emx_archive(self, data: dict, directory: str) -> Path:
