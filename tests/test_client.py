@@ -56,14 +56,8 @@ class TestStringMethods(unittest.TestCase):
         cwd = os.getcwd()
         if cwd.endswith('tests'):
             os.chdir('..')
-        response = cls.session.upload_zip('./tests/resources/all_datatypes.zip').split('/')
-        run_entity_type = response[-2]
-        run_id = response[-1]
-        status_info = cls.session.get_by_id(run_entity_type, run_id)
-        while status_info['status'] == 'RUNNING':
-            status_info = cls.session.get_by_id(run_entity_type, run_id)
-        if status_info['status'] == 'FAILED':
-            raise Exception(f"Importing test data failed: {status_info['message']}", )
+        cls.session.upload_zip('./tests/resources/all_datatypes.zip',
+                               asynchronous=False).split('/')
 
     @classmethod
     def tearDownClass(cls):
@@ -200,12 +194,8 @@ class TestStringMethods(unittest.TestCase):
 
     def test_delete_data(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./tests/resources/sightings_test.zip').split('/')
-        run_entity_type = response[-2]
-        run_id = response[-1]
-        status_info = self.session.get_by_id(run_entity_type, run_id)
-        while status_info['status'] == 'RUNNING':
-            status_info = self.session.get_by_id(run_entity_type, run_id)
+        self.session.upload_zip('./tests/resources/sightings_test.zip',
+                                asynchronous=False).split('/')
         self.session.delete('org_molgenis_test_python_sightings')
         number_of_rows = self.session.get('org_molgenis_test_python_sightings', raw=True)['total']
         self.assertEqual(0, number_of_rows)
