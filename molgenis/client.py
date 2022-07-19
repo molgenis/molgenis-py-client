@@ -1,8 +1,15 @@
+import copy
+import csv
+from enum import Enum
 import json
 import os
+import tempfile
 from http.cookiejar import CookiePolicy
+from pathlib import Path
+from time import sleep
 from typing import List, Union, Any, Optional
 from urllib.parse import quote_plus, urlparse, parse_qs
+from zipfile import ZipFile
 
 import requests
 
@@ -20,6 +27,23 @@ class BlockAll(CookiePolicy):
 
     def set_ok(self, cookie, request):
         return False
+
+class ImportDataAction(Enum):
+    """Enum of MOLGENIS import actions"""
+
+    ADD = "add"
+    ADD_UPDATE_EXISTING = "add_update_existing"
+    UPDATE = "update"
+    ADD_IGNORE_EXISTING = "add_ignore_existing"
+
+
+class ImportMetadataAction(Enum):
+    """Enum of MOLGENIS import metadata actions"""
+
+    ADD = "add"
+    UPDATE = "update"
+    UPSERT = "upsert"
+    IGNORE = "ignore"
 
 
 class Session:
@@ -81,7 +105,7 @@ class Session:
 
         self._token = None
 
-    def get_by_id(self, entity: str, id_: str, attributes: str = None, expand: str = None) -> dict:
+    def get_by_id(self, entity: str, id_: str, attributes: str = None, expand: str = None, uploadable: bool = False) -> dict:
         """Retrieves a single entity row from an entity repository.
 
         Args:
@@ -89,6 +113,7 @@ class Session:
         id_ -- the value for the idAttribute of the entity
         attributes -- The list of attributes to retrieve (comma separated)
         expand -- the attributes to expand, string with commas to separate multiple attributes.
+        uploadable -- when true the output of the REST Client will be changed such that it can be uploaded again
 
         Examples:
         >>> session = Session('http://localhost:8080/api/')
@@ -106,6 +131,10 @@ class Session:
 
         result = response.json()
         response.close()
+
+        if uploadable:
+            result = self.to_upload_format(entity, [result])[0]
+
         return result
 
     def get(self,
@@ -118,7 +147,8 @@ class Session:
             sort_column: str = None,
             sort_order: str = None,
             raw: bool = False,
-            expand: str = None) -> Union[List[dict], dict]:
+            expand: str = None,
+            uploadable: bool = False) -> Union[List[dict], dict]:
         """Retrieves all entity rows from an entity repository.
 
         Args:
@@ -133,6 +163,7 @@ class Session:
         sortColumn -- the attribute to sort on
         sortOrder -- the order to sort in
         raw -- when true, the complete REST response will be returned, rather than the data items alone
+        uploadable -- when true the output of the REST Client will be changed such that it can be uploaded again
 
         Examples:
         >>> session = Session('http://localhost:8080/api/')
@@ -172,6 +203,9 @@ class Session:
 
         if num:  # Truncate items
             items = items[:num]
+
+        if uploadable:
+            items = self.to_upload_format(entity, items)
 
         return items
 
@@ -269,6 +303,66 @@ class Session:
 
         return response
 
+    def update_all(self, entity: str, entities: List[dict]):
+        """Updates multiple entities."""
+        response = self._session.put(
+            self._api_url + "v2/" + quote_plus(entity),
+            headers=self._get_token_header_with_content_type(),
+            data=json.dumps({"entities": entities}),
+        )
+
+        try:
+            response.raise_for_status()
+        except requests.RequestException as ex:
+            self._raise_exception(ex)
+
+        return response
+
+    def upsert(self, entity_type_id: str, entities: List[dict]):
+        """
+        Upserts entities in an entity type.
+        @param entity_type_id: the id of the entity type to upsert to
+        @param entities: the entities to upsert
+        """
+        # Get the existing identifiers
+        meta = self.get_entity_meta_data(entity_type_id)
+        id_attr = meta["idAttribute"]
+        existing_entities = self.get(entity_type_id, batch_size=10000, attributes=id_attr)
+        existing_ids = {entity[id_attr] for entity in existing_entities}
+
+        # Based on the existing identifiers, decide which rows should be added/updated
+        add = list()
+        update = list()
+        for entity in entities:
+            if entity[id_attr] in existing_ids:
+                update.append(entity)
+            else:
+                add.append(entity)
+
+        # Sanitize data: rows that are added should not contain one_to_manys
+        add = self._remove_one_to_manys(add, meta)
+
+        # Do the adds and updates separately
+        self.add_all(entity_type_id, add)
+        self.update_all(entity_type_id, update)
+
+    def _remove_one_to_manys(self, rows: List[dict], meta: dict) -> List[dict]:
+        """
+        Removes all one-to-manys from a list of rows based on the table's metadata. Removing
+        one-to-manys is necessary when adding new rows. Returns a copy so that the original
+        rows are not changed in any way.
+        """
+        one_to_manys = []
+        for attribute in meta["attributes"].keys():
+            if meta["attributes"][attribute]["fieldType"] == "ONE_TO_MANY":
+                print(attribute)
+                one_to_manys.append(attribute)
+        copied_rows = copy.deepcopy(rows)
+        for row in copied_rows:
+            for one_to_many in one_to_manys:
+                row.pop(one_to_many, None)
+        return copied_rows
+
     def delete(self, entity: str, id_: str = None) -> requests.Response:
         """Deletes a single entity row or all rows (if id_ not specified) from an entity repository."""
         url = self._api_url + "v1/" + quote_plus(entity)
@@ -317,19 +411,141 @@ class Session:
 
         return response.json()
 
-    def upload_zip(self, meta_data_zip: str) -> str:
-        """Uploads a given zip with data and metadata"""
-        header = self._get_token_header()
-        with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
-            files = {'file': zip_file}
-            url = self._root_url + 'plugin/importwizard/importFile'
-            response = requests.post(url, headers=header, files=files)
+    def get_meta(self, entity_type_id: str, expand: bool = False, abstract: bool = False):
+        """Similar to get_entity_meta_data(), but uses the newer Metadata API instead
+        of the REST API V1.
+        If expand is true, the metadata of the ref entities will be returned also.
+        If abstract is true, the metadata of the parent entity will be returned also.
+        """
+        response = self._session.get(
+            self._api_url + "metadata/" + quote_plus(entity_type_id) + "?flattenAttributes="+str(abstract),
+            headers=self._get_token_header(),
+        )
+
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
             self._raise_exception(ex)
 
+        meta = response.json()["data"]
+
+        if expand:
+            for item in meta["attributes"]["items"]:
+                if "refEntityType" in item["data"]:
+                    ref_url = item["data"]["refEntityType"]["self"]
+                    ref_entity = ref_url[ref_url.rindex("/"):].replace("/", "")
+                    item["data"]["refEntityType"] = self.get_meta(ref_entity, abstract=True)
+
+        return meta
+
+    def to_upload_format(self, entity_type_id: str, rows: List[dict], ) -> List[dict]:
+        """
+        Changes the output of the REST Client such that it can be uploaded again:
+        1. Non-data fields are removed (_href and _meta).
+        2. Reference objects are removed and replaced with their identifiers.
+        """
+        meta = self.get_meta(entity_type_id, expand=True, abstract=True)
+        upload_format = []
+        ref_ids = {}
+        # Get the idAttributes of the refEntities
+        for attr in meta["attributes"]["items"]:
+            if "refEntityType" in attr["data"]:
+                for ref_attr in attr["data"]["refEntityType"]["attributes"]["items"]:
+                    if ref_attr["data"]["idAttribute"] is True:
+                        ref_ids[attr["data"]["name"]] = ref_attr["data"]["name"]
+
+        for row in rows:
+            # Remove non-data fields
+            row.pop("_href", None)
+            row.pop("_meta", None)
+
+            for attr in row:
+                if type(row[attr]) is dict:
+                    # Change xref dicts to id
+                    ref = row[attr][ref_ids[attr]]
+                    row[attr] = ref
+                elif type(row[attr]) is list and len(row[attr]) > 0:
+                    # Change mref list of dicts to list of ids
+                    mref = [ref[ref_ids[attr]] for ref in row[attr]]
+                    row[attr] = mref
+
+            upload_format.append(row)
+        return upload_format
+
+    def upload_zip(self,
+                   meta_data_zip: str,
+                   data_action: ImportDataAction = ImportDataAction.ADD,
+                   metadata_action: ImportMetadataAction = ImportMetadataAction.UPSERT,
+                   asynchronous: bool = True) -> str:
+        """Uploads a given zip with data and/or metadata
+        If asynchronous is True it does not wait till the upload is finished.
+        Options for metadata_action are: [ADD, UPDATE, UPSERT, IGNORE]
+        Options for data_action are: [ADD, ADD_UPDATE_EXISTING, UPDATE, ADD_IGNORE_EXISTING]
+        """
+
+        header = self._get_token_header()
+        params = {"action": data_action.value, "metadataAction": metadata_action.value}
+        with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
+            files = {'file': zip_file}
+            url = self._root_url + 'plugin/importwizard/importFile'
+            response = requests.post(url, headers=header, files=files, params=params)
+        try:
+            response.raise_for_status()
+        except requests.RequestException as ex:
+            self._raise_exception(ex)
+
+        if not asynchronous:
+            self._await_import_job(response.text.split("/")[-1])
+
         return response.content.decode("utf-8")
+
+    def import_data(self, data: dict, data_action: ImportDataAction, metadata_action: ImportMetadataAction):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            archive = self._create_emx_archive(data, tmpdir)
+            self.upload_zip(
+                archive,
+                data_action,
+                metadata_action,
+                asynchronous=False
+            )
+
+    def _create_emx_archive(self, data: dict, directory: str) -> Path:
+        archive_name = f"{directory}/archive.zip"
+        with ZipFile(archive_name, "w") as archive:
+            for table_name in data.keys():
+                meta_attributes = [
+                    attr["data"]["name"] for attr in
+                    self.get_meta(entity_type_id=table_name)["attributes"]["items"]
+                ]
+                file_name = f"{table_name}.csv"
+                file_path = f"{directory}/{file_name}"
+                self._create_csv(data[table_name], file_path, meta_attributes)
+                archive.write(file_path, file_name)
+        return Path(archive_name)
+
+    @staticmethod
+    def _create_csv(table: List[dict], file_name: str, meta_attributes: List[str]):
+        with open(file_name, "w", encoding="utf-8") as fp:
+            writer = csv.DictWriter(
+                fp, fieldnames=meta_attributes, quoting=csv.QUOTE_ALL
+            )
+            writer.writeheader()
+            for row in table:
+                for key, value in row.items():
+                    if isinstance(value, list):
+                        row[key] = ",".join(value)
+                writer.writerow(row)
+
+    def _await_import_job(self, job: str):
+        while True:
+            sleep(5)
+            import_run = self.get_by_id(
+                "sys_ImportRun", job, attributes="status,message"
+            )
+            if import_run["status"] == "FAILED":
+                raise MolgenisRequestError(import_run["message"])
+            if import_run["status"] != "RUNNING":
+                return
 
     def _get_token_header(self) -> dict:
         """Creates an 'x-molgenis-token' header for the current session."""

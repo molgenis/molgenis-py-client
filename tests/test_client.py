@@ -56,14 +56,8 @@ class TestStringMethods(unittest.TestCase):
         cwd = os.getcwd()
         if cwd.endswith('tests'):
             os.chdir('..')
-        response = cls.session.upload_zip('./tests/resources/all_datatypes.zip').split('/')
-        run_entity_type = response[-2]
-        run_id = response[-1]
-        status_info = cls.session.get_by_id(run_entity_type, run_id)
-        while status_info['status'] == 'RUNNING':
-            status_info = cls.session.get_by_id(run_entity_type, run_id)
-        if status_info['status'] == 'FAILED':
-            raise Exception(f"Importing test data failed: {status_info['message']}", )
+        cls.session.upload_zip('./tests/resources/all_datatypes.zip',
+                               asynchronous=False).split('/')
 
     @classmethod
     def tearDownClass(cls):
@@ -151,6 +145,44 @@ class TestStringMethods(unittest.TestCase):
             status_info = self.session.get_by_id(run_entity_type, run_id)
         self.assertEqual('FINISHED', status_info['status'])
 
+    def test_upload_zip_await(self):
+        self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip', asynchronous=False).split('/')
+        run_entity_type = response[-2]
+        run_id = response[-1]
+        status_info = self.session.get_by_id(run_entity_type, run_id)
+        self.assertEqual('FINISHED', status_info['status'])
+
+    def test_upload_zip_param(self):
+        self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
+        response = self.session.upload_zip('./tests/resources/sightings_test.zip', asynchronous=False,
+                                           data_action=molgenis.ImportDataAction.ADD_UPDATE_EXISTING, metadata_action=molgenis.ImportMetadataAction.ADD).split('/')
+        run_entity_type = response[-2]
+        run_id = response[-1]
+        status_info = self.session.get_by_id(run_entity_type, run_id)
+        self.assertEqual('FINISHED', status_info['status'])
+
+    def test_import_data(self):
+        self._try_delete(self.ref_entity, ['ref55'])
+        self.assertEqual('ref55', self.session.add(self.ref_entity, {"value": "ref55", "label": "label55"}))
+        try:
+            self.session.get_by_id(self.ref_entity, "ref66", "label")
+        except Exception as e:
+            message = e.args[0]
+            expected = "404 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTestRef/ref66?attrs=label: Unknown entity with 'value' 'ref66' of type 'TypeTestRef'.".format(self.api_url)
+            self.assertEqual(expected, message)
+        data={}
+        data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66"}]
+        try:
+            self.session.import_data(data, molgenis.ImportDataAction.ADD_UPDATE_EXISTING, molgenis.ImportMetadataAction.IGNORE)
+        except Exception as e:
+            raise Exception(e)
+        item55 = self.session.get_by_id(self.ref_entity, "ref55", "label")
+        self.assertEqual("updated-label55", item55["label"])
+        item66 = self.session.get_by_id(self.ref_entity, "ref66", "label")
+        self.assertEqual("label66", item66["label"])
+        self.session.delete_list(self.ref_entity, ['ref55', "ref66"])
+
     def test_delete_row(self):
         self._try_add(self.ref_entity, [{"value": "ref55", "label": "label55"}])
         response = self.session.delete(self.ref_entity, 'ref55')
@@ -162,12 +194,8 @@ class TestStringMethods(unittest.TestCase):
 
     def test_delete_data(self):
         self._try_delete('sys_md_EntityType', ['org_molgenis_test_python_sightings'])
-        response = self.session.upload_zip('./tests/resources/sightings_test.zip').split('/')
-        run_entity_type = response[-2]
-        run_id = response[-1]
-        status_info = self.session.get_by_id(run_entity_type, run_id)
-        while status_info['status'] == 'RUNNING':
-            status_info = self.session.get_by_id(run_entity_type, run_id)
+        self.session.upload_zip('./tests/resources/sightings_test.zip',
+                                asynchronous=False).split('/')
         self.session.delete('org_molgenis_test_python_sightings')
         number_of_rows = self.session.get('org_molgenis_test_python_sightings', raw=True)['total']
         self.assertEqual(0, number_of_rows)
@@ -229,6 +257,46 @@ class TestStringMethods(unittest.TestCase):
                        "/ref555/label: Unknown entity with 'value' 'ref555' of type 'TypeTestRef'.".format(self.api_url)
             self.assertEqual(expected, message)
 
+    def test_update_all(self):
+        self._try_delete(self.ref_entity, ['ref55', 'ref66'])
+        self.assertEqual(['ref55', "ref66"], self.session.add_all(self.ref_entity, [{"value": "ref55", "label": "label55"}, {"value": "ref66", "label": "label66"}]))
+        try:
+            self.session.update_all(self.ref_entity, [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "updated-label66"}])
+        except Exception as e:
+            raise Exception(e)
+        item55 = self.session.get_by_id(self.ref_entity, "ref55", "label")
+        self.assertEqual("updated-label55", item55["label"])
+        item66 = self.session.get_by_id(self.ref_entity, "ref66", "label")
+        self.assertEqual("updated-label66", item66["label"])
+        self.session.delete_list(self.ref_entity, ['ref55', "ref66"])
+
+    def test_update_all_error(self):
+        try:
+            self.session.update_all(self.ref_entity, [{"value": "ref555", "label": "updated-label555"}, {"value": "ref666", "label": "updated-label666"}])
+        except Exception as e:
+            message = e.args[0]
+            expected = "400 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTestRef: Cannot update [org_molgenis_test_python_TypeTestRef] with id [ref555] because it does not exist".format(self.api_url)
+            self.assertEqual(expected, message)
+
+    def test_upsert(self):
+        self._try_delete(self.ref_entity, ['ref55'])
+        self.assertEqual('ref55', self.session.add(self.ref_entity, {"value": "ref55", "label": "label55"}))
+        try:
+            self.session.get_by_id(self.ref_entity, "ref66", "label")
+        except Exception as e:
+            message = e.args[0]
+            expected = "404 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTestRef/ref66?attrs=label: Unknown entity with 'value' 'ref66' of type 'TypeTestRef'.".format(self.api_url)
+            self.assertEqual(expected, message)
+        try:
+            self.session.upsert(self.ref_entity, [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66"}])
+        except Exception as e:
+            raise Exception(e)
+        item55 = self.session.get_by_id(self.ref_entity, "ref55", "label")
+        self.assertEqual("updated-label55", item55["label"])
+        item66 = self.session.get_by_id(self.ref_entity, "ref66", "label")
+        self.assertEqual("label66", item66["label"])
+        self.session.delete_list(self.ref_entity, ['ref55', "ref66"])
+
     def test_add_kwargs(self):
         self._try_delete(self.ref_entity, ['ref55'])
         self.assertEqual('ref55', self.session.add(self.ref_entity, value="ref55", label="label55"))
@@ -282,7 +350,13 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(len(first_item), 3)
         self.assertEqual(expected, first_item['xcomputedxref'])
 
-    def test_get_meta(self):
+    def test_get_uploadable(self):
+        data = self.session.get(self.entity, uploadable=True)
+        first_item = data[0]['xcategorical_value']
+        expected = 'ref1'
+        self.assertEqual(expected, first_item)
+
+    def test_get_entity_meta(self):
         meta = self.session.get_entity_meta_data(self.user_entity)
         self.assertEqual('username', meta['labelAttribute'])
 
@@ -295,10 +369,30 @@ class TestStringMethods(unittest.TestCase):
                           'validationExpression': "regex('^\\\\S.+\\\\S$', {username})"},
                          meta)
 
+    def test_get_meta(self):
+        meta = self.session.get_meta(self.user_entity)
+        self.assertEqual('Username', meta["attributes"]["items"][1]["data"]["label"])
+
+    def test_get_meta_expand(self):
+        meta = self.session.get_meta(self.entity, expand=True)
+        self.assertEqual("value", meta["attributes"]["items"][6]["data"]["refEntityType"]["attributes"]["items"][0]["data"]["name"])
+
+    def test_get_meta_abstract(self):
+        meta = self.session.get_meta("sys_mail_JavaMailProperty", abstract=True)
+        attr=[]
+        expected = ["MailSettings", "key", "value"]
+        for item in meta["attributes"]["items"]:
+            attr.append(item["data"]["label"])
+        self.assertEqual(expected, attr)
+
     def test_get_by_id(self):
         data = self.session.get_by_id(self.ref_entity, 'ref1')
         del data['_meta']
         self.assertEqual(self.expected_ref_data[0], data)
+
+    def test_get_by_id_uploadable(self):
+        data = self.session.get_by_id(self.ref_entity, 'ref1', uploadable=True)
+        self.assertEqual({'label': 'label1', 'value': 'ref1'}, data)
 
     def test_get_by_id_expand(self):
         data = self.session.get_by_id(self.entity, '1', expand='xcomputedxref')
