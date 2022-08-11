@@ -1,49 +1,22 @@
-import copy
-import csv
-from enum import Enum
+
 import json
 import os
 import tempfile
-from http.cookiejar import CookiePolicy
 from pathlib import Path
 from time import sleep
-from typing import List, Union, Any, Optional
+from typing import List, Union, Any
 from urllib.parse import quote_plus, urlparse, parse_qs
 from zipfile import ZipFile
 
 import requests
 
-
-class MolgenisRequestError(Exception):
-    def __init__(self, error, response=False):
-        self.message = error
-        if response:
-            self.response = response
-
-
-class BlockAll(CookiePolicy):
-    def return_ok(self, cookie, request):
-        pass
-
-    def set_ok(self, cookie, request):
-        return False
-
-class ImportDataAction(Enum):
-    """Enum of MOLGENIS import actions"""
-
-    ADD = "add"
-    ADD_UPDATE_EXISTING = "add_update_existing"
-    UPDATE = "update"
-    ADD_IGNORE_EXISTING = "add_ignore_existing"
-
-
-class ImportMetadataAction(Enum):
-    """Enum of MOLGENIS import metadata actions"""
-
-    ADD = "add"
-    UPDATE = "update"
-    UPSERT = "upsert"
-    IGNORE = "ignore"
+from molgenis.utils import (BlockAll,
+                            Headers,
+                            ImportDataAction,
+                            ImportMetadataAction,
+                            MolgenisRequestError)
+import molgenis.get_utils as get_utils
+import molgenis.utils as utils
 
 
 class Session:
@@ -64,18 +37,12 @@ class Session:
         Examples:
         >>> session = Session('http://localhost:8080/')
         """
-        self._set_urls(url)
+        self._api_url = utils.set_urls(url)[0]
+        self._root_url = utils.set_urls(url)[1]
         self._session = requests.Session()
         self._session.cookies.policy = BlockAll()
         self._token = token
-
-    def _set_urls(self, url: str):
-        """ Sets the root and API URLs.
-        Historically, the URL had to be passed with '/api' at the end. This method is for backwards compatibility and
-        allows for URLs both with and without the '/api' postfix.
-        """
-        self._root_url = url.rstrip('/').rstrip('/api') + '/'
-        self._api_url = self._root_url + 'api/'
+        self.headers = Headers(token=self._token)
 
     def login(self, username: str, password: str):
         """Logs in a user and stores the acquired token in this Session object.
@@ -90,18 +57,19 @@ class Session:
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         self._token = response.json()['token']
+        self.headers = Headers(token=self._token)
 
     def logout(self):
         """Logs out the current token."""
         response = self._session.post(self._api_url + "v1/logout",
-                                      headers=self._get_token_header())
+                                      headers=self.headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         self._token = None
 
@@ -121,13 +89,13 @@ class Session:
         """
         possible_options = {'attrs': [attributes, expand]}
 
-        url = self._build_api_url(self._api_url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
-        response = self._session.get(url, headers=self._get_token_header())
+        url = get_utils.build_api_url(self._api_url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
+        response = self._session.get(url, headers=self.headers.token_header)
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         result = response.json()
         response.close()
@@ -226,13 +194,13 @@ class Session:
                             'start': start,
                             'sort': [sort_column, sort_order]}
 
-        url = self._build_api_url(self._api_url + "v2/" + quote_plus(entity), possible_options)
-        response = self._session.get(url, headers=self._get_token_header())
+        url = get_utils.build_api_url(self._api_url + "v2/" + quote_plus(entity), possible_options)
+        response = self._session.get(url, headers=self.headers.token_header)
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         if raw:
             return response.json()
@@ -267,39 +235,39 @@ class Session:
             files = {}
 
         response = self._session.post(self._api_url + "v1/" + quote_plus(entity),
-                                      headers=self._get_token_header(),
-                                      data=self._merge_two_dicts(data, kwargs),
+                                      headers=self.headers.token_header,
+                                      data=utils.merge_two_dicts(data, kwargs),
                                       files=files)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response.headers["Location"].split("/")[-1]
 
     def add_all(self, entity: str, entities: List[dict]) -> List[str]:
         """Adds multiple entity rows to an entity repository."""
         response = self._session.post(self._api_url + "v2/" + quote_plus(entity),
-                                      headers=self._get_token_header_with_content_type(),
+                                      headers=self.headers.ct_token_header,
                                       data=json.dumps({"entities": entities}))
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
 
     def update_one(self, entity: str, id_: str, attr: str, value: Any) -> requests.Response:
         """Updates one attribute of a given entity in a table with a given value"""
         response = self._session.put(self._api_url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
-                                     headers=self._get_token_header_with_content_type(),
+                                     headers=self.headers.ct_token_header,
                                      data=json.dumps(value))
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response
 
@@ -307,14 +275,14 @@ class Session:
         """Updates multiple entities."""
         response = self._session.put(
             self._api_url + "v2/" + quote_plus(entity),
-            headers=self._get_token_header_with_content_type(),
+            headers=self.headers.ct_token_header,
             data=json.dumps({"entities": entities}),
         )
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response
 
@@ -340,28 +308,11 @@ class Session:
                 add.append(entity)
 
         # Sanitize data: rows that are added should not contain one_to_manys
-        add = self._remove_one_to_manys(add, meta)
+        add = utils.remove_one_to_manys(add, meta)
 
         # Do the adds and updates separately
         self.add_all(entity_type_id, add)
         self.update_all(entity_type_id, update)
-
-    def _remove_one_to_manys(self, rows: List[dict], meta: dict) -> List[dict]:
-        """
-        Removes all one-to-manys from a list of rows based on the table's metadata. Removing
-        one-to-manys is necessary when adding new rows. Returns a copy so that the original
-        rows are not changed in any way.
-        """
-        one_to_manys = []
-        for attribute in meta["attributes"].keys():
-            if meta["attributes"][attribute]["fieldType"] == "ONE_TO_MANY":
-                print(attribute)
-                one_to_manys.append(attribute)
-        copied_rows = copy.deepcopy(rows)
-        for row in copied_rows:
-            for one_to_many in one_to_manys:
-                row.pop(one_to_many, None)
-        return copied_rows
 
     def delete(self, entity: str, id_: str = None) -> requests.Response:
         """Deletes a single entity row or all rows (if id_ not specified) from an entity repository."""
@@ -369,45 +320,45 @@ class Session:
         if id_:
             url = url + "/" + quote_plus(id_)
 
-        response = self._session.delete(url, headers=self._get_token_header())
+        response = self._session.delete(url, headers=self.headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response
 
     def delete_list(self, entity: str, entities: List[str]) -> requests.Response:
         """Deletes multiple entity rows to an entity repository, given a list of id's."""
         response = self._session.delete(self._api_url + "v2/" + quote_plus(entity),
-                                        headers=self._get_token_header_with_content_type(),
+                                        headers=self.headers.ct_token_header,
                                         data=json.dumps({"entityIds": entities}))
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response
 
     def get_entity_meta_data(self, entity: str) -> dict:
         """Retrieves the metadata for an entity repository."""
         response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
-                                     headers=self._get_token_header())
+                                     headers=self.headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response.json()
 
     def get_attribute_meta_data(self, entity: str, attribute: str) -> dict:
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
-                                     headers=self._get_token_header())
+                                     headers=self.headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         return response.json()
 
@@ -419,13 +370,13 @@ class Session:
         """
         response = self._session.get(
             self._api_url + "metadata/" + quote_plus(entity_type_id) + "?flattenAttributes="+str(abstract),
-            headers=self._get_token_header(),
+            headers=self.headers.token_header,
         )
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         meta = response.json()["data"]
 
@@ -483,16 +434,15 @@ class Session:
         Options for data_action are: [ADD, ADD_UPDATE_EXISTING, UPDATE, ADD_IGNORE_EXISTING]
         """
 
-        header = self._get_token_header()
         params = {"action": data_action.value, "metadataAction": metadata_action.value}
         with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
             files = {'file': zip_file}
             url = self._root_url + 'plugin/importwizard/importFile'
-            response = requests.post(url, headers=header, files=files, params=params)
+            response = requests.post(url, headers=self.headers.token_header, files=files, params=params)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            self._raise_exception(ex)
+            utils.raise_exception(ex)
 
         if not asynchronous:
             self._await_import_job(response.text.split("/")[-1])
@@ -519,22 +469,9 @@ class Session:
                 ]
                 file_name = f"{table_name}.csv"
                 file_path = f"{directory}/{file_name}"
-                self._create_csv(data[table_name], file_path, meta_attributes)
+                utils.create_csv(data[table_name], file_path, meta_attributes)
                 archive.write(file_path, file_name)
         return Path(archive_name)
-
-    @staticmethod
-    def _create_csv(table: List[dict], file_name: str, meta_attributes: List[str]):
-        with open(file_name, "w", encoding="utf-8") as fp:
-            writer = csv.DictWriter(
-                fp, fieldnames=meta_attributes, quoting=csv.QUOTE_ALL
-            )
-            writer.writeheader()
-            for row in table:
-                for key, value in row.items():
-                    if isinstance(value, list):
-                        row[key] = ",".join(value)
-                writer.writerow(row)
 
     def _await_import_job(self, job: str):
         while True:
@@ -546,99 +483,3 @@ class Session:
                 raise MolgenisRequestError(import_run["message"])
             if import_run["status"] != "RUNNING":
                 return
-
-    def _get_token_header(self) -> dict:
-        """Creates an 'x-molgenis-token' header for the current session."""
-        try:
-            return {"x-molgenis-token": self._token}
-        except AttributeError:
-            return {}
-
-    def _get_token_header_with_content_type(self) -> dict:
-        """Creates an 'x-molgenis-token' header for the current session and a 'Content-Type: application/json' header"""
-        headers = self._get_token_header()
-        headers.update({"Content-Type": "application/json"})
-        return headers
-
-    @staticmethod
-    def _process_query(option_value, option: str) -> str:
-        """Add query to operators and raise exception when query value is invalid"""
-        if type(option_value) == list:
-            raise TypeError('Please specify your query in the RSQL format.')
-        else:
-            return '{}={}'.format(option, option_value)
-
-    @staticmethod
-    def _process_sort(option_value: List[str]) -> str:
-        """Converts the sort and sort order to a sort attribute compatible with the REST API v2"""
-        if option_value[0] and not option_value[1]:
-            return 'sort=' + option_value[0]
-        elif option_value[0] and option_value[1]:
-            return 'sort={}:{}'.format(option_value[0], option_value[1])
-
-    @staticmethod
-    def _split_if_not_none(operator: Optional[str]) -> List[str]:
-        """Returns empty list if operator is None, else splits the operator string by comma to return a list"""
-        return operator.split(',') if operator else []
-
-    def _merge_attrs(self, attr_expands: List[Optional[str]]) -> str:
-        """Converts the attrs and expands to an attr attribute compatible with the REST API v2"""
-        # Make a list of attrs and expands
-        attrs = self._split_if_not_none(attr_expands[0])
-        expands = self._split_if_not_none(attr_expands[1])
-        # If only expands is specified, all attributes should be returned, so add a wildcard to the list
-        if len(attrs) == 0 and len(expands) > 0:
-            attrs.append('*')
-        # Get a set of all unique attributes (expands and attributes merged)
-        unique_attrs = set(attrs + expands)
-        # Iterate over all unique attributes and expand by adding (*) if the attributes is in the expands list
-        attrs_operator = [attr + '(*)' if attr in expands else attr for attr in unique_attrs]
-        # If there is an attrs operator, return it with its prefix and comma separated
-        if attrs_operator:
-            return 'attrs={}'.format(','.join(attrs_operator))
-
-    def _build_api_url(self, base_url: str, possible_options: dict):
-        """This function builds the api url for the get request, converting the api v1 compliant operators to v2
-        operators to enable backwards compatibility of the python api when switching to api v2"""
-        operators = []
-        for option, option_value in possible_options.items():
-            operator = None
-            if option == 'q' and option_value:
-                operator = self._process_query(option_value, option)
-            elif option == 'sort':
-                operator = self._process_sort(option_value)
-            elif option == 'attrs':
-                operator = self._merge_attrs(option_value)
-            elif option_value and not (option == 'num' and option_value == 100):
-                operator = '{}={}'.format(option, option_value)
-
-            if operator:
-                operators.append(operator)
-
-        url = '{}?{}'.format(base_url, '&'.join(operators))
-
-        if url == base_url + '?':
-            return base_url
-        else:
-            return url
-
-    @staticmethod
-    def _merge_two_dicts(x: dict, y: dict) -> dict:
-        """Given two dicts, merge them into a new dict as a shallow copy."""
-        z = x.copy()
-        z.update(y)
-        return z
-
-    @staticmethod
-    def _raise_exception(ex):
-        """Raises an exception with error message from molgenis"""
-        message = ex.args[0]
-        if ex.response.content:
-            try:
-                error = json.loads(ex.response.content.decode("utf-8"))['errors'][0]['message']
-            except ValueError:  # Cannot parse JSON
-                error = ex.response.content
-            error_msg = '{}: {}'.format(message, error)
-            raise MolgenisRequestError(error_msg, ex.response)
-        else:
-            raise MolgenisRequestError('{}'.format(message))

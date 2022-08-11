@@ -2,6 +2,8 @@ import os
 import unittest
 
 import molgenis.client as molgenis
+import molgenis.get_utils as get_utils
+import molgenis.utils as utils
 
 
 class ResponseMock:
@@ -171,7 +173,7 @@ class TestStringMethods(unittest.TestCase):
             message = e.args[0]
             expected = "404 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTestRef/ref66?attrs=label: Unknown entity with 'value' 'ref66' of type 'TypeTestRef'.".format(self.api_url)
             self.assertEqual(expected, message)
-        data={}
+        data = {}
         data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66"}]
         try:
             self.session.import_data(data, molgenis.ImportDataAction.ADD_UPDATE_EXISTING, molgenis.ImportMetadataAction.IGNORE)
@@ -411,7 +413,7 @@ class TestStringMethods(unittest.TestCase):
                             'num': 1000,
                             'start': 1000,
                             'sort': ['x', 'desc']}
-        generated_url = self.session._build_api_url(base_url, possible_options)
+        generated_url = get_utils.build_api_url(base_url, possible_options)
         # Only check the contents of the operators because their order is random
         expected_sort = 'x:desc'
         expected_attrs = ['x', 'y(*)']
@@ -437,7 +439,7 @@ class TestStringMethods(unittest.TestCase):
                             'num': 100,
                             'start': 0,
                             'sort': [None, None]}
-        generated_url = self.session._build_api_url(base_url, possible_options)
+        generated_url = get_utils.build_api_url(base_url, possible_options)
         expected = 'https://test.frl/api/test'
         self.assertEqual(expected, generated_url)
 
@@ -448,7 +450,7 @@ class TestStringMethods(unittest.TestCase):
                             'num': 100,
                             'start ': 0,
                             'sort': ['x', None]}
-        generated_url = self.session._build_api_url(base_url, possible_options)
+        generated_url = get_utils.build_api_url(base_url, possible_options)
         # Only check the contents of the operators because their order is random
         expected_sort = 'x'
         expected_attrs = ['*', 'y(*)']
@@ -466,13 +468,13 @@ class TestStringMethods(unittest.TestCase):
                             'start': 0,
                             'sort': ['x', None]}
         with self.assertRaises(TypeError):
-            self.session._build_api_url(base_url, possible_options)
+            get_utils.build_api_url(base_url, possible_options)
 
     def test_raise_exception_with_missing_content(self):
         msg = 'message'
         ex = ExceptionMock(msg, None)
         try:
-            self.session._raise_exception(ex)
+            utils.raise_exception(ex)
         except Exception as e:
             message = e.args[0]
             expected = msg
