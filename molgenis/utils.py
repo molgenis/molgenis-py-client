@@ -10,6 +10,7 @@ import json
 
 class BlockAll(CookiePolicy):
     def return_ok(self, cookie, request):
+        """Cookie handling"""
         pass
 
     def set_ok(self, cookie, request):
