@@ -10,12 +10,13 @@ from zipfile import ZipFile
 
 import requests
 
-from molgenis.utils import (BlockAll,
-                            Headers,
-                            ImportDataAction,
-                            ImportMetadataAction,
-                            MolgenisRequestError)
-import molgenis.get_utils as get_utils
+from molgenis.api_support import (BlockAll,
+                                  Headers,
+                                  ImportDataAction,
+                                  ImportMetadataAction)
+
+from molgenis.errors import MolgenisRequestError, raise_exception
+import molgenis.query_utils as query_utils
 import molgenis.utils as utils
 
 
@@ -37,12 +38,11 @@ class Session:
         Examples:
         >>> session = Session('http://localhost:8080/')
         """
-        self._api_url = utils.set_urls(url)[0]
-        self._root_url = utils.set_urls(url)[1]
+        self._set_urls(url)
         self._session = requests.Session()
         self._session.cookies.policy = BlockAll()
         self._token = token
-        self.headers = Headers(token=self._token)
+        self._headers = Headers(token=self._token)
 
     def login(self, username: str, password: str):
         """Logs in a user and stores the acquired token in this Session object.
@@ -52,28 +52,30 @@ class Session:
         password -- password for the user
         """
         response = self._session.post(self._api_url + "v1/login",
-                                      data=json.dumps({"username": username, "password": password}),
+                                      data=json.dumps({"username": username,
+                                                       "password": password}),
                                       headers={"Content-Type": "application/json"})
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         self._token = response.json()['token']
-        self.headers = Headers(token=self._token)
+        self._headers = Headers(token=self._token)
 
     def logout(self):
         """Logs out the current token."""
         response = self._session.post(self._api_url + "v1/logout",
-                                      headers=self.headers.token_header)
+                                      headers=self._headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         self._token = None
 
-    def get_by_id(self, entity: str, id_: str, attributes: str = None, expand: str = None, uploadable: bool = False) -> dict:
+    def get_by_id(self, entity: str, id_: str, attributes: str = None,
+                  expand: str = None, uploadable: bool = False) -> dict:
         """Retrieves a single entity row from an entity repository.
 
         Args:
@@ -89,13 +91,13 @@ class Session:
         """
         possible_options = {'attrs': [attributes, expand]}
 
-        url = get_utils.build_api_url(self._api_url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
-        response = self._session.get(url, headers=self.headers.token_header)
+        url = query_utils.build_api_url(self._api_url + "v2/" + quote_plus(entity) + '/' + quote_plus(id_), possible_options)
+        response = self._session.get(url, headers=self._headers.token_header)
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         result = response.json()
         response.close()
@@ -194,13 +196,13 @@ class Session:
                             'start': start,
                             'sort': [sort_column, sort_order]}
 
-        url = get_utils.build_api_url(self._api_url + "v2/" + quote_plus(entity), possible_options)
-        response = self._session.get(url, headers=self.headers.token_header)
+        url = query_utils.build_api_url(self._api_url + "v2/" + quote_plus(entity), possible_options)
+        response = self._session.get(url, headers=self._headers.token_header)
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         if raw:
             return response.json()
@@ -235,39 +237,39 @@ class Session:
             files = {}
 
         response = self._session.post(self._api_url + "v1/" + quote_plus(entity),
-                                      headers=self.headers.token_header,
+                                      headers=self._headers.token_header,
                                       data=utils.merge_two_dicts(data, kwargs),
                                       files=files)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response.headers["Location"].split("/")[-1]
 
     def add_all(self, entity: str, entities: List[dict]) -> List[str]:
         """Adds multiple entity rows to an entity repository."""
         response = self._session.post(self._api_url + "v2/" + quote_plus(entity),
-                                      headers=self.headers.ct_token_header,
+                                      headers=self._headers.ct_token_header,
                                       data=json.dumps({"entities": entities}))
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return [resource["href"].split("/")[-1] for resource in response.json()["resources"]]
 
     def update_one(self, entity: str, id_: str, attr: str, value: Any) -> requests.Response:
         """Updates one attribute of a given entity in a table with a given value"""
         response = self._session.put(self._api_url + "v1/" + quote_plus(entity) + "/" + id_ + "/" + attr,
-                                     headers=self.headers.ct_token_header,
+                                     headers=self._headers.ct_token_header,
                                      data=json.dumps(value))
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response
 
@@ -275,14 +277,14 @@ class Session:
         """Updates multiple entities."""
         response = self._session.put(
             self._api_url + "v2/" + quote_plus(entity),
-            headers=self.headers.ct_token_header,
+            headers=self._headers.ct_token_header,
             data=json.dumps({"entities": entities}),
         )
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response
 
@@ -320,45 +322,45 @@ class Session:
         if id_:
             url = url + "/" + quote_plus(id_)
 
-        response = self._session.delete(url, headers=self.headers.token_header)
+        response = self._session.delete(url, headers=self._headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response
 
     def delete_list(self, entity: str, entities: List[str]) -> requests.Response:
         """Deletes multiple entity rows to an entity repository, given a list of id's."""
         response = self._session.delete(self._api_url + "v2/" + quote_plus(entity),
-                                        headers=self.headers.ct_token_header,
+                                        headers=self._headers.ct_token_header,
                                         data=json.dumps({"entityIds": entities}))
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response
 
     def get_entity_meta_data(self, entity: str) -> dict:
         """Retrieves the metadata for an entity repository."""
         response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta?expand=attributes",
-                                     headers=self.headers.token_header)
+                                     headers=self._headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response.json()
 
     def get_attribute_meta_data(self, entity: str, attribute: str) -> dict:
         """Retrieves the metadata for a single attribute of an entity repository."""
         response = self._session.get(self._api_url + "v1/" + quote_plus(entity) + "/meta/" + quote_plus(attribute),
-                                     headers=self.headers.token_header)
+                                     headers=self._headers.token_header)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         return response.json()
 
@@ -370,13 +372,13 @@ class Session:
         """
         response = self._session.get(
             self._api_url + "metadata/" + quote_plus(entity_type_id) + "?flattenAttributes="+str(abstract),
-            headers=self.headers.token_header,
+            headers=self._headers.token_header,
         )
 
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         meta = response.json()["data"]
 
@@ -438,11 +440,11 @@ class Session:
         with open(os.path.abspath(meta_data_zip), 'rb') as zip_file:
             files = {'file': zip_file}
             url = self._root_url + 'plugin/importwizard/importFile'
-            response = requests.post(url, headers=self.headers.token_header, files=files, params=params)
+            response = requests.post(url, headers=self._headers.token_header, files=files, params=params)
         try:
             response.raise_for_status()
         except requests.RequestException as ex:
-            utils.raise_exception(ex)
+            raise_exception(ex)
 
         if not asynchronous:
             self._await_import_job(response.text.split("/")[-1])
@@ -483,3 +485,11 @@ class Session:
                 raise MolgenisRequestError(import_run["message"])
             if import_run["status"] != "RUNNING":
                 return
+
+    def _set_urls(self, url: str):
+        """ Sets the root and API URLs.
+        Historically, the URL had to be passed with '/api' at the end. This method is for backwards compatibility and
+        allows for URLs both with and without the '/api' postfix.
+        """
+        self._root_url = url.rstrip('/').rstrip('/api') + '/'
+        self._api_url = self._root_url + 'api/'

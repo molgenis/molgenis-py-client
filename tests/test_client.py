@@ -1,9 +1,9 @@
 import os
 import unittest
 
+from molgenis.errors import raise_exception
 import molgenis.client as molgenis
-import molgenis.get_utils as get_utils
-import molgenis.utils as utils
+import molgenis.query_utils as query_utils
 
 
 class ResponseMock:
@@ -381,7 +381,7 @@ class TestStringMethods(unittest.TestCase):
 
     def test_get_meta_abstract(self):
         meta = self.session.get_meta("sys_mail_JavaMailProperty", abstract=True)
-        attr=[]
+        attr = []
         expected = ["MailSettings", "key", "value"]
         for item in meta["attributes"]["items"]:
             attr.append(item["data"]["label"])
@@ -413,7 +413,7 @@ class TestStringMethods(unittest.TestCase):
                             'num': 1000,
                             'start': 1000,
                             'sort': ['x', 'desc']}
-        generated_url = get_utils.build_api_url(base_url, possible_options)
+        generated_url = query_utils.build_api_url(base_url, possible_options)
         # Only check the contents of the operators because their order is random
         expected_sort = 'x:desc'
         expected_attrs = ['x', 'y(*)']
@@ -439,7 +439,7 @@ class TestStringMethods(unittest.TestCase):
                             'num': 100,
                             'start': 0,
                             'sort': [None, None]}
-        generated_url = get_utils.build_api_url(base_url, possible_options)
+        generated_url = query_utils.build_api_url(base_url, possible_options)
         expected = 'https://test.frl/api/test'
         self.assertEqual(expected, generated_url)
 
@@ -450,7 +450,7 @@ class TestStringMethods(unittest.TestCase):
                             'num': 100,
                             'start ': 0,
                             'sort': ['x', None]}
-        generated_url = get_utils.build_api_url(base_url, possible_options)
+        generated_url = query_utils.build_api_url(base_url, possible_options)
         # Only check the contents of the operators because their order is random
         expected_sort = 'x'
         expected_attrs = ['*', 'y(*)']
@@ -468,13 +468,13 @@ class TestStringMethods(unittest.TestCase):
                             'start': 0,
                             'sort': ['x', None]}
         with self.assertRaises(TypeError):
-            get_utils.build_api_url(base_url, possible_options)
+            query_utils.build_api_url(base_url, possible_options)
 
     def test_raise_exception_with_missing_content(self):
         msg = 'message'
         ex = ExceptionMock(msg, None)
         try:
-            utils.raise_exception(ex)
+            raise_exception(ex)
         except Exception as e:
             message = e.args[0]
             expected = msg
