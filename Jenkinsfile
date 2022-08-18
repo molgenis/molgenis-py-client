@@ -84,6 +84,8 @@ pipeline {
                     sh "git remote set-url origin https://${GITHUB_TOKEN}@github.com/${REPOSITORY}.git"
 
                     sh "git checkout -f ${BRANCH_NAME}"
+                    
+                    sh "pip install bumpversion"
 
                     sh "bumpversion ${RELEASE_SCOPE} setup.py"
 
