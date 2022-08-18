@@ -15,6 +15,7 @@ pipeline {
                 }
                 container('vault') {
                     script {
+                        env.PYPI_REGISTRY = sh(script: 'vault read -field=registry secret/ops/account/pypi', returnStdout: true)
                         env.PYPI_USERNAME = sh(script: 'vault read -field=username secret/ops/account/pypi', returnStdout: true)
                         env.PYPI_PASSWORD = sh(script: 'vault read -field=password secret/ops/account/pypi', returnStdout: true)
                         env.GITHUB_TOKEN = sh(script: 'vault read -field=value secret/ops/token/github', returnStdout: true)
