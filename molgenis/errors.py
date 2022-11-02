@@ -16,6 +16,8 @@ def raise_exception(ex):
             error = json.loads(ex.response.content.decode("utf-8"))['errors'][0]['message']
         except ValueError:  # Cannot parse JSON
             error = ex.response.content
+        except KeyError:  # Cannot parse JSON
+            error = json.loads(ex.response.content.decode("utf-8"))['detail']
         error_msg = '{}: {}'.format(message, error)
         raise MolgenisRequestError(error_msg, ex.response)
     else:

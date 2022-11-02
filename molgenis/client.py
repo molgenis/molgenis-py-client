@@ -304,8 +304,11 @@ class Session:
         add = list()
         update = list()
         for entity in entities:
-            if entity[id_attr] in existing_ids:
-                update.append(entity)
+            if id_attr in entity:
+                if entity[id_attr] in existing_ids:
+                    update.append(entity)
+                else:
+                    add.append(entity)
             else:
                 add.append(entity)
 
