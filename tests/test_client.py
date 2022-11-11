@@ -24,6 +24,8 @@ class TestStringMethods(unittest.TestCase):
 
     host = os.getenv('CI_HOST', 'http://localhost:8080')
     password = os.getenv('CI_PASSWORD', 'admin')
+    host = "https://dieuwke.gcc.rug.nl"
+    password = "Replace-Flour-Idea-Plural"
     api_url = host
 
     user_entity = 'sys_sec_User'
@@ -174,7 +176,7 @@ class TestStringMethods(unittest.TestCase):
             expected = "404 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTestRef/ref66?attrs=label: Unknown entity with 'value' 'ref66' of type 'TypeTestRef'.".format(self.api_url)
             self.assertEqual(expected, message)
         data = {}
-        data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66"}]
+        data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66", "unknown_field": "1"}]
         try:
             self.session.import_data(data, molgenis.ImportDataAction.ADD_UPDATE_EXISTING, molgenis.ImportMetadataAction.IGNORE)
         except Exception as e:
