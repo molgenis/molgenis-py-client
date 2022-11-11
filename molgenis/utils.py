@@ -7,7 +7,7 @@ import csv
 def create_csv(table: List[dict], file_name: str, meta_attributes: List[str]):
     with open(file_name, "w", encoding="utf-8") as fp:
         writer = csv.DictWriter(
-            fp, fieldnames=meta_attributes, quoting=csv.QUOTE_ALL, extrasaction='ignore'
+            fp, fieldnames=meta_attributes, quoting=csv.QUOTE_ALL, extrasaction="ignore"
         )
         writer.writeheader()
         for row in table:
