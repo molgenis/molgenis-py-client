@@ -24,6 +24,8 @@ class TestStringMethods(unittest.TestCase):
 
     host = os.getenv('CI_HOST', 'http://localhost:8080')
     password = os.getenv('CI_PASSWORD', 'admin')
+    host = "https://dieuwke.gcc.rug.nl"
+    password = "Replace-Flour-Idea-Plural"
     api_url = host
 
     user_entity = 'sys_sec_User'
@@ -174,7 +176,7 @@ class TestStringMethods(unittest.TestCase):
             expected = "404 Client Error:  for url: {}/api/v2/org_molgenis_test_python_TypeTestRef/ref66?attrs=label: Unknown entity with 'value' 'ref66' of type 'TypeTestRef'.".format(self.api_url)
             self.assertEqual(expected, message)
         data = {}
-        data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66"}]
+        data[self.ref_entity] = [{"value": "ref55", "label": "updated-label55"}, {"value": "ref66", "label": "label66", "unknown_field": "1"}]
         try:
             self.session.import_data(data, molgenis.ImportDataAction.ADD_UPDATE_EXISTING, molgenis.ImportMetadataAction.IGNORE)
         except Exception as e:
@@ -299,6 +301,29 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual("label66", item66["label"])
         self.session.delete_list(self.ref_entity, ['ref55', "ref66"])
 
+    def test_upsert_auto_id(self):
+        entity = "sys_sec_Token"
+        admin = self.session.get(self.user_entity, q='username==admin', attributes='id')
+        self.session.add(entity, data={'User': admin[0]['id'],
+                                       'token': "test_existing_token",
+                                       'creationDate': '2000-01-01T01:01:01'})
+        token_old = self.session.get(entity, q="token==test_existing_token", uploadable=True)[0]
+        token_old["token"] = 'test_existing_token_updated'
+
+        token_new = {'User': admin[0]['id'],
+                     'token': "test_new_token",
+                     'creationDate': '2000-01-01T01:01:01'}
+
+        try:
+            self.session.upsert(entity, [token_old, token_new])
+        except Exception as e:
+            raise Exception(e)
+        updated = self.session.get_by_id(entity, token_old["id"], uploadable=True)
+        self.assertEqual("test_existing_token_updated", updated["token"])
+        new = self.session.get(entity, q="token==test_new_token", uploadable=True)
+        self.assertEqual("test_new_token", new[0]["token"])
+        self.session.delete_list(entity, [updated["id"], new[0]["id"]])
+
     def test_add_kwargs(self):
         self._try_delete(self.ref_entity, ['ref55'])
         self.assertEqual('ref55', self.session.add(self.ref_entity, value="ref55", label="label55"))
@@ -386,6 +411,14 @@ class TestStringMethods(unittest.TestCase):
         for item in meta["attributes"]["items"]:
             attr.append(item["data"]["label"])
         self.assertEqual(expected, attr)
+
+    def test_get_meta_error(self):
+        try:
+            self.session.get_meta("non_existing_entity")
+        except Exception as e:
+            message = e.args[0]
+            expected = "404 Client Error:  for url: {}/api/metadata/non_existing_entity?flattenAttributes=False: Unknown entity type 'non_existing_entity'.".format(self.api_url)
+            self.assertEqual(expected, message)
 
     def test_get_by_id(self):
         data = self.session.get_by_id(self.ref_entity, 'ref1')
