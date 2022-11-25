@@ -100,7 +100,7 @@ pipeline {
                     sh "twine upload --repository-url ${PYPI_REGISTRY} -u ${PYPI_USERNAME} -p ${PYPI_PASSWORD} dist/*"
 
                     sh "git push --tags origin master"
-                    hubotSend(message: "Python REST Client ${PYTHON_CLIENT_VERSION} has been successfully released! :tada: https://pypi.org/project/molgenis-py-client/", status:'SUCCESS')
+                    molgenisSlack(message: "Python REST Client ${PYTHON_CLIENT_VERSION} has been successfully released! :tada: https://pypi.org/project/molgenis-py-client/", status:'SUCCESS', channel: "#pr-platform")
                 }
             }
         }
@@ -116,9 +116,9 @@ pipeline {
 }
 
 def notifySuccess() {
-    hubotSend(message: 'Build success', status:'INFO', site: 'slack-pr-app-team')
+    molgenisSlack(message: 'Build success', status:'INFO', site: '#pr-platform')
 }
 
 def notifyFailed() {
-    hubotSend(message: 'Build failed', status:'ERROR', site: 'slack-pr-app-team')
+    molgenisSlack(message: 'Build failed', status:'ERROR', site: '#pr-platform')
 }
