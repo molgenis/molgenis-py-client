@@ -24,8 +24,6 @@ class TestStringMethods(unittest.TestCase):
 
     host = os.getenv('CI_HOST', 'http://localhost:8080')
     password = os.getenv('CI_PASSWORD', 'admin')
-    host = "https://dieuwke.gcc.rug.nl"
-    password = "Replace-Flour-Idea-Plural"
     api_url = host
 
     user_entity = 'sys_sec_User'
